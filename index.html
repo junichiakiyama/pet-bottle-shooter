@@ -93,6 +93,10 @@ function addTouchControls() {
     `border:none;color:#fff;font-size:${fs};touch-action:none;-webkit-tap-highlight-color:transparent;background:${bg};border-right:1px solid rgba(255,255,255,0.1);`;
   pad.innerHTML = `
     <div style="flex:2;display:flex;flex-direction:column;">
+      <button id="td" style="${btnStyle('rgba(0,180,255,0.25)','12px')}flex:1;width:100%;">💨 DASH<br><span style="font-size:10px;opacity:0.7">(Shift)</span></button>
+      <button id="tz" style="${btnStyle('rgba(0,220,120,0.25)','12px')}flex:1;width:100%;">💥 CARBO<br><span style="font-size:10px;opacity:0.7">(Z key)</span></button>
+    </div>
+    <div style="flex:3;display:flex;flex-direction:column;">
       <div style="flex:1;display:flex;">
         <button id="tl" style="${btnStyle('rgba(80,140,255,0.25)','32px')}flex:1;">◀</button>
         <button id="tr" style="${btnStyle('rgba(80,140,255,0.25)','32px')}flex:1;">▶</button>
@@ -106,10 +110,6 @@ function addTouchControls() {
       <div style="flex:0 0 28px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);">
         <span style="color:rgba(255,255,255,0.5);font-size:10px;font-family:monospace;">連射・炭酸蓄積</span>
       </div>
-    </div>
-    <div style="flex:2;display:flex;flex-direction:column;">
-      <button id="td" style="${btnStyle('rgba(0,180,255,0.25)','12px')}flex:1;width:100%;">💨 DASH<br><span style="font-size:10px;opacity:0.7">(Shift)</span></button>
-      <button id="tz" style="${btnStyle('rgba(0,220,120,0.25)','12px')}flex:1;width:100%;">💥 CARBO<br><span style="font-size:10px;opacity:0.7">(Z key)</span></button>
     </div>
   `;
   document.body.appendChild(pad);
