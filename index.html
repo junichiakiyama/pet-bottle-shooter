@@ -86,13 +86,31 @@ function addTouchControls() {
   }, {passive: false});
 
   const pad = document.createElement('div');
-  pad.style.cssText = `position:fixed;bottom:0;left:0;width:100%;height:110px;display:flex;pointer-events:auto;z-index:10;`;
+  pad.style.cssText = `position:fixed;bottom:0;left:0;width:100%;height:130px;display:flex;align-items:stretch;pointer-events:auto;z-index:10;`;
+  // Layout: [◀][▶] | [FIRE] | [DASH][CARBO]
+  // Left hand: ◀▶ (left side), Right hand: FIRE (center), extras on right
+  const btnStyle = (bg, fs) =>
+    `border:none;color:#fff;font-size:${fs};touch-action:none;-webkit-tap-highlight-color:transparent;background:${bg};border-right:1px solid rgba(255,255,255,0.1);`;
   pad.innerHTML = `
-    <button id="tl" style="flex:1;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:28px;touch-action:none;-webkit-tap-highlight-color:transparent;">◀</button>
-    <button id="td" style="flex:1;background:rgba(0,200,255,.2);border:none;color:#fff;font-size:12px;touch-action:none;-webkit-tap-highlight-color:transparent;">DASH</button>
-    <button id="tz" style="flex:1;background:rgba(0,255,150,.2);border:none;color:#fff;font-size:11px;touch-action:none;-webkit-tap-highlight-color:transparent;">CARBO</button>
-    <button id="tf" style="flex:2;background:rgba(255,100,0,.25);border:none;color:#fff;font-size:13px;touch-action:none;-webkit-tap-highlight-color:transparent;">FIRE</button>
-    <button id="tr" style="flex:1;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:28px;touch-action:none;-webkit-tap-highlight-color:transparent;">▶</button>
+    <div style="flex:2;display:flex;flex-direction:column;">
+      <div style="flex:1;display:flex;">
+        <button id="tl" style="${btnStyle('rgba(80,140,255,0.25)','32px')}flex:1;">◀</button>
+        <button id="tr" style="${btnStyle('rgba(80,140,255,0.25)','32px')}flex:1;">▶</button>
+      </div>
+      <div style="flex:0 0 28px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);">
+        <span style="color:rgba(255,255,255,0.5);font-size:10px;font-family:monospace;">← 移動 →</span>
+      </div>
+    </div>
+    <div style="flex:3;display:flex;flex-direction:column;">
+      <button id="tf" style="${btnStyle('rgba(255,80,0,0.3)','16px')}flex:1;width:100%;">🔥 FIRE</button>
+      <div style="flex:0 0 28px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.3);">
+        <span style="color:rgba(255,255,255,0.5);font-size:10px;font-family:monospace;">連射・炭酸蓄積</span>
+      </div>
+    </div>
+    <div style="flex:2;display:flex;flex-direction:column;">
+      <button id="td" style="${btnStyle('rgba(0,180,255,0.25)','12px')}flex:1;width:100%;">💨 DASH<br><span style="font-size:10px;opacity:0.7">(Shift)</span></button>
+      <button id="tz" style="${btnStyle('rgba(0,220,120,0.25)','12px')}flex:1;width:100%;">💥 CARBO<br><span style="font-size:10px;opacity:0.7">(Z key)</span></button>
+    </div>
   `;
   document.body.appendChild(pad);
 
@@ -713,7 +731,7 @@ function shootAtPlayer(enemy) {
   const dx = player.x - enemy.x;
   const dy = player.y - enemy.y;
   const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-  const speed = 3.5;
+  const speed = 2.2;
   bullets.push(new Bullet(enemy.x, enemy.y + enemy.r, dy/dist*speed, false, true));
   bullets.push(new Bullet(enemy.x, enemy.y + enemy.r, (dy/dist*speed) * 0.8, false, true));
   const nb = bullets[bullets.length-1];
@@ -722,7 +740,7 @@ function shootAtPlayer(enemy) {
 
 function shootSpread(enemy) {
   for (let i = -2; i <= 2; i++) {
-    const b = new Bullet(enemy.x + i * 15, enemy.y + 30, 3, false, true);
+    const b = new Bullet(enemy.x + i * 15, enemy.y + 30, 2, false, true);
     b.vx = i * 1.2;
     bullets.push(b);
   }
