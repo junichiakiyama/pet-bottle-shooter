@@ -60,7 +60,8 @@
     position:relative; overflow:hidden; transition:transform .1s;}
   .bookcard:active{transform:scale(.97);}
   .spine{height:74px; border-radius:12px; display:flex; align-items:center; justify-content:center;
-    font-size:30px; margin-bottom:8px;}
+    font-size:30px; margin-bottom:8px; position:relative; overflow:hidden;}
+  .sp-cover{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
   .btitle{font-weight:bold; font-size:14px; line-height:1.3; max-height:2.6em; overflow:hidden;}
   .bmeta{font-size:11px; color:#a98; margin-top:2px;}
   .pbar{background:#f0e6ec; height:8px; border-radius:6px; margin-top:8px; overflow:hidden;}
@@ -103,6 +104,14 @@
   .gchip{padding:8px 12px; border-radius:16px; background:#fff; border:2px solid var(--pink-soft);
     font-size:14px;}
   .gchip.sel{background:var(--pink); color:#fff; border-color:var(--pink);}
+  #abResults{max-height:230px; overflow-y:auto; margin-top:8px;}
+  .sresult{display:flex; gap:10px; align-items:center; background:#fff; border-radius:12px;
+    padding:8px; margin-bottom:8px; border:2px solid #fff;}
+  .sresult.sel{border-color:var(--blue);}
+  .sresult img{width:36px; height:50px; object-fit:cover; border-radius:5px; background:var(--pink-soft);}
+  .sresult .st{font-weight:bold; font-size:13px; line-height:1.3;}
+  .sresult .sa{font-size:11px; color:#a98; margin-top:2px;}
+  .shint{color:#a98; font-size:12px; padding:8px 4px;}
   .btn-primary{width:100%; background:var(--pink); color:#fff; padding:15px; border-radius:16px;
     font-weight:bold; font-size:17px; margin-top:20px; box-shadow:0 5px 0 #e070a0;}
   .btn-ghost{width:100%; background:none; color:#b09; padding:12px; font-weight:bold; margin-top:6px;}
@@ -112,7 +121,7 @@
 
   /* book detail */
   .detail-spine{height:120px; border-radius:16px; display:flex; align-items:center; justify-content:center;
-    font-size:50px; margin-bottom:14px;}
+    font-size:50px; margin-bottom:14px; position:relative; overflow:hidden;}
   .stat-row{display:flex; justify-content:space-around; text-align:center; margin:14px 0;}
   .stat-row .num{font-size:22px; font-weight:bold; color:var(--purple);}
   .stat-row .lbl{font-size:11px; color:#a98;}
@@ -305,7 +314,7 @@ function renderShelf(p){
     const pct=b.totalPages?Math.min(100,Math.round(b.pagesRead/b.totalPages*100)):(b.status==='done'?100:0);
     return `<div class="bookcard" data-id="${b.id}">
       ${b.status==='done'?'<div class="donetag">よんだ！</div>':''}
-      <div class="spine" style="background:${col}">${g.e}</div>
+      <div class="spine" style="background:${col}">${g.e}${b.coverUrl?`<img class="sp-cover" src="${esc(b.coverUrl)}" alt="" onerror="this.remove()">`:''}</div>
       <div class="btitle">${esc(b.title)}</div>
       <div class="bmeta">${g.n}${b.totalPages?' ・ '+b.pagesRead+'/'+b.totalPages+'p':''}</div>
       <div class="pbar"><div class="pfill" style="width:${pct}%"></div></div>
@@ -323,8 +332,12 @@ function renderBadges(s){
 
 /* ---------- add book ---------- */
 function addBook(){
-  let genre='monogatari';
+  let genre='monogatari', coverUrl='', isbn='';
   modal(`<h2>本をついか 📖</h2>
+    <label>本をさがす 🔎</label>
+    <div class="btn-row"><input id="abSearch" placeholder="タイトルでけんさく" style="flex:1">
+      <button class="btn-sub" id="abSearchBtn" style="flex:0 0 70px">さがす</button></div>
+    <div id="abResults"></div>
     <label>本のなまえ</label><input id="abTitle" placeholder="例：ぐりとぐら">
     <label>さくしゃ（なくてもOK）</label><input id="abAuthor" placeholder="例：なかがわりえこ">
     <label>ページすう（なくてもOK）</label><input id="abPages" type="number" inputmode="numeric" placeholder="例：32">
@@ -333,11 +346,68 @@ function addBook(){
     <button class="btn-primary" id="abSave">本だなにいれる</button>`);
   document.getElementById('abGenre').onclick=e=>{const b=e.target.closest('[data-g]'); if(!b)return;
     document.querySelectorAll('#abGenre .gchip').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); genre=b.dataset.g;};
+
+  function normIsbn(s){ s=(s||'').replace(/[^0-9Xx]/g,'');
+    if(s.length===10){ const core='978'+s.slice(0,9); let sum=0;
+      for(let i=0;i<12;i++) sum+=(+core[i])*(i%2?3:1);
+      return core+((10-(sum%10))%10); }
+    return s.length===13?s:''; }
+  function pickIsbn(item){
+    const ids=[...item.getElementsByTagName('dc:identifier')]; let raw='';
+    for(const n of ids){ const ty=n.getAttribute('xsi:type')||''; if(/ISBN/i.test(ty)){ raw=n.textContent; if(/13/.test(ty)) break; } }
+    return normIsbn(raw); }
+  function parsePages(item){ const ex=item.getElementsByTagName('dc:extent')[0]||item.getElementsByTagName('dcndl:extent')[0];
+    if(!ex) return 0; const m=ex.textContent.match(/(\d+)\s*p/); return m?+m[1]:0; }
+  function renderResults(items){
+    const box=document.getElementById('abResults');
+    if(!items.length){ box.innerHTML='<div class="shint">みつからなかったよ。手でいれてもOK！</div>'; return; }
+    box.innerHTML=items.map((x,i)=>`<div class="sresult" data-i="${i}">
+      ${x.cover?`<img src="${esc(x.cover)}" alt="">`:'<div style="width:36px;height:50px;background:var(--pink-soft);border-radius:5px;flex:0 0 36px"></div>'}
+      <div style="flex:1;min-width:0"><div class="st">${esc(x.title)}</div>
+      <div class="sa">${esc(x.author)}${x.pages?' ・ '+x.pages+'p':''}</div></div></div>`).join('');
+    box.querySelectorAll('.sresult').forEach(el=>el.onclick=()=>{
+      const x=items[el.dataset.i];
+      document.getElementById('abTitle').value=x.title;
+      document.getElementById('abAuthor').value=x.author;
+      if(x.pages) document.getElementById('abPages').value=x.pages;
+      coverUrl=x.cover||''; isbn=x.isbn||'';
+      box.querySelectorAll('.sresult').forEach(z=>z.classList.remove('sel')); el.classList.add('sel');
+    });
+  }
+  async function doSearch(){
+    const q=document.getElementById('abSearch').value.trim(); if(!q)return;
+    const box=document.getElementById('abResults'); box.innerHTML='<div class="shint">さがしてるよ…⏳</div>';
+    try{
+      const r=await fetch('https://ndlsearch.ndl.go.jp/api/opensearch?cnt=20&title='+encodeURIComponent(q));
+      const xml=new DOMParser().parseFromString(await r.text(),'application/xml');
+      let items=[...xml.querySelectorAll('item')].map(it=>({
+        title:(it.querySelector('title')?.textContent||'').trim(),
+        author:(it.getElementsByTagName('dc:creator')[0]?.textContent||'').replace(/\s+/g,' ').trim(),
+        isbn:pickIsbn(it), pages:parsePages(it)
+      })).filter(x=>x.isbn && x.title);
+      const seen={}; items=items.filter(x=>seen[x.isbn]?false:(seen[x.isbn]=true)).slice(0,12);
+      if(!items.length){ box.innerHTML='<div class="shint">みつからなかったよ。手でいれてもOK！</div>'; return; }
+      // openBD covers (batch) as fallback source
+      try{ const cr=await fetch('https://api.openbd.jp/v1/get?isbn='+items.map(x=>x.isbn).join(','));
+        const cj=await cr.json(); cj.forEach((b,i)=>{ if(b&&b.summary&&b.summary.cover) items[i].obd=b.summary.cover; });
+      }catch(e){}
+      // resolve a real, loadable cover per item: Amazon first, then openBD
+      await Promise.all(items.map(async x=>{
+        const amz=amzCover(x.isbn);
+        if(amz && await imgWorks(amz)){ x.cover=amz; return; }
+        if(x.obd && await imgWorks(x.obd)){ x.cover=x.obd; }
+      }));
+      renderResults(items);
+    }catch(e){ box.innerHTML='<div class="shint">ネットにつながらないみたい。手でいれてね。</div>'; }
+  }
+  document.getElementById('abSearchBtn').onclick=doSearch;
+  document.getElementById('abSearch').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();doSearch();} });
+
   document.getElementById('abSave').onclick=()=>{
     const title=document.getElementById('abTitle').value.trim(); if(!title){alert('本のなまえをいれてね');return;}
     const pages=parseInt(document.getElementById('abPages').value)||0;
     const p=P(); p.books.push({id:uid(),title,author:document.getElementById('abAuthor').value.trim(),
-      totalPages:pages,genre,status:'reading',pagesRead:0,createdAt:Date.now(),finishedAt:null});
+      totalPages:pages,genre,coverUrl,isbn,status:'reading',pagesRead:0,createdAt:Date.now(),finishedAt:null});
     save(); closeModal(); renderApp();
   };
 }
@@ -349,7 +419,7 @@ function bookDetail(id){
   const col=SPINE_COLORS[hashc(b.id)%SPINE_COLORS.length];
   const pct=b.totalPages?Math.min(100,Math.round(b.pagesRead/b.totalPages*100)):0;
   modal(`<h2 style="font-size:18px">${esc(b.title)}</h2>
-    <div class="detail-spine" style="background:${col}">${g.e}</div>
+    <div class="detail-spine" style="background:${col}">${g.e}${b.coverUrl?`<img class="sp-cover" src="${esc(b.coverUrl)}" alt="" style="object-fit:contain" onerror="this.remove()">`:''}</div>
     <div style="text-align:center;color:#a98;font-size:13px">${b.author?esc(b.author)+'・':''}${g.n}</div>
     <div class="stat-row">
       <div><div class="num">${b.pagesRead}</div><div class="lbl">よんだページ</div></div>
@@ -454,6 +524,15 @@ function backToProfiles(){
 /* ---------- utils ---------- */
 function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function hashc(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
+function isbn13to10(isbn){ isbn=(isbn||'').replace(/[^0-9Xx]/g,'');
+  if(isbn.length===10) return isbn;
+  if(isbn.length===13 && isbn.slice(0,3)==='978'){ const c=isbn.slice(3,12); let s=0;
+    for(let i=0;i<9;i++) s+=(+c[i])*(10-i); let d=(11-(s%11))%11;
+    return c+(d===10?'X':String(d)); }
+  return ''; }
+function amzCover(isbn){ const i=isbn13to10(isbn); return i?('https://images-na.ssl-images-amazon.com/images/P/'+i+'.09.LZZZZZZZ.jpg'):''; }
+function imgWorks(u){ return new Promise(r=>{ const im=new Image();
+  im.onload=()=>r(im.naturalWidth>2); im.onerror=()=>r(false); im.src=u; setTimeout(()=>r(false),5000); }); }
 
 /* ---------- boot ---------- */
 renderProfiles();
