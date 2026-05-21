@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#ff8fbf">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>よみとも</title>
+<style>
+  :root{
+    --pink:#ff8fbf; --pink-soft:#ffd6e8; --blue:#9fd3ff; --blue-soft:#d8efff;
+    --purple:#8a5cff; --yellow:#ffcf3f; --bg:#fff7fb; --ink:#5b4a52; --card:#ffffff;
+    --good:#5ad19a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; font-family:"Hiragino Maru Gothic ProN","Rounded Mplus 1c","Segoe UI",system-ui,sans-serif;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--ink);}
+  body{max-width:520px; margin:0 auto; padding-bottom:90px; min-height:100vh;}
+  button{cursor:pointer; border:none; font-size:16px;}
+  .hidden{display:none !important;}
+
+  /* ---------- profile select ---------- */
+  #profileScreen{padding:40px 20px; text-align:center;}
+  #profileScreen h1{font-size:34px; color:var(--pink); margin:10px 0 4px; letter-spacing:1px;}
+  #profileScreen .sub{color:#a98; margin-bottom:30px;}
+  .avatar-grid{display:flex; flex-wrap:wrap; gap:16px; justify-content:center;}
+  .pcard{background:var(--card); border-radius:24px; padding:18px 14px; width:130px;
+    box-shadow:0 6px 0 #f2d8e6; transition:transform .1s;}
+  .pcard:active{transform:scale(.96);}
+  .pcard .face{font-size:48px;}
+  .pcard .pname{font-weight:bold; margin-top:6px; font-size:17px;}
+  .pcard.add{border:3px dashed var(--pink-soft); box-shadow:none; background:#fff;}
+  .pcard.add .face{color:var(--pink);}
+
+  /* ---------- header ---------- */
+  header{background:linear-gradient(135deg,var(--pink-soft),var(--blue-soft));
+    padding:18px 18px 22px; border-radius:0 0 28px 28px; position:relative;}
+  .hrow{display:flex; align-items:center; gap:12px;}
+  .hface{font-size:40px; background:#fff; border-radius:50%; width:62px; height:62px;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 4px 0 #ffffff80;}
+  .hinfo{flex:1;}
+  .hname{font-weight:bold; font-size:18px;}
+  .htitle{font-size:13px; color:var(--purple); font-weight:bold;}
+  .streak{background:#fff; border-radius:18px; padding:6px 12px; font-weight:bold;
+    font-size:15px; box-shadow:0 3px 0 #ffffff80;}
+  .xpwrap{margin-top:14px;}
+  .xptop{display:flex; justify-content:space-between; font-size:12px; font-weight:bold; margin-bottom:4px;}
+  .xpbar{background:#ffffffaa; height:16px; border-radius:10px; overflow:hidden;}
+  .xpfill{height:100%; background:linear-gradient(90deg,var(--yellow),var(--pink));
+    border-radius:10px; transition:width .6s ease;}
+
+  /* ---------- content ---------- */
+  main{padding:18px;}
+  .sectitle{font-weight:bold; font-size:16px; margin:6px 0 12px; display:flex; align-items:center; gap:6px;}
+  .empty{text-align:center; color:#bba; padding:40px 10px; line-height:1.7;}
+  .empty .big{font-size:46px;}
+
+  .shelf{display:grid; grid-template-columns:repeat(2,1fr); gap:14px;}
+  .bookcard{background:var(--card); border-radius:18px; padding:14px; box-shadow:0 4px 0 #f0dfe9;
+    position:relative; overflow:hidden; transition:transform .1s;}
+  .bookcard:active{transform:scale(.97);}
+  .spine{height:74px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    font-size:30px; margin-bottom:8px;}
+  .btitle{font-weight:bold; font-size:14px; line-height:1.3; max-height:2.6em; overflow:hidden;}
+  .bmeta{font-size:11px; color:#a98; margin-top:2px;}
+  .pbar{background:#f0e6ec; height:8px; border-radius:6px; margin-top:8px; overflow:hidden;}
+  .pfill{height:100%; background:var(--good); border-radius:6px;}
+  .donetag{position:absolute; top:8px; right:8px; background:var(--good); color:#fff;
+    font-size:11px; font-weight:bold; padding:3px 8px; border-radius:10px;}
+
+  /* badges */
+  .badge-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px;}
+  .badge{background:var(--card); border-radius:18px; padding:14px 8px; text-align:center;
+    box-shadow:0 4px 0 #f0dfe9;}
+  .badge .bem{font-size:34px;}
+  .badge.locked{opacity:.45; filter:grayscale(.8);}
+  .badge .bn{font-size:12px; font-weight:bold; margin-top:4px;}
+  .badge .bd{font-size:10px; color:#a98; margin-top:2px;}
+
+  /* ---------- bottom nav ---------- */
+  nav{position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:100%; max-width:520px;
+    background:#fff; display:flex; justify-content:space-around; padding:10px 0 max(10px,env(safe-area-inset-bottom));
+    box-shadow:0 -3px 16px #0001; border-radius:24px 24px 0 0;}
+  .nav-btn{background:none; flex:1; text-align:center; color:#c4b3bd; font-size:11px; font-weight:bold;}
+  .nav-btn .ni{font-size:24px; display:block;}
+  .nav-btn.active{color:var(--pink);}
+  .fab{position:fixed; bottom:80px; right:calc(50% - 260px + 18px); background:var(--pink); color:#fff;
+    width:62px; height:62px; border-radius:50%; font-size:34px; box-shadow:0 6px 16px #ff8fbf80; z-index:20;}
+  @media(max-width:520px){ .fab{right:18px;} }
+
+  /* ---------- modal ---------- */
+  .overlay{position:fixed; inset:0; background:#0006; display:flex; align-items:flex-end;
+    justify-content:center; z-index:50;}
+  .sheet{background:var(--bg); width:100%; max-width:520px; border-radius:26px 26px 0 0;
+    padding:22px 20px max(22px,env(safe-area-inset-bottom)); animation:up .25s ease;}
+  @keyframes up{from{transform:translateY(100%);}}
+  .sheet h2{margin:0 0 16px; font-size:20px;}
+  label{display:block; font-size:13px; font-weight:bold; margin:12px 0 5px; color:#967;}
+  input,select{width:100%; padding:12px 14px; border-radius:14px; border:2px solid var(--pink-soft);
+    background:#fff; font-size:16px; color:var(--ink);}
+  input:focus,select:focus{outline:none; border-color:var(--pink);}
+  .genre-pick{display:flex; flex-wrap:wrap; gap:8px;}
+  .gchip{padding:8px 12px; border-radius:16px; background:#fff; border:2px solid var(--pink-soft);
+    font-size:14px;}
+  .gchip.sel{background:var(--pink); color:#fff; border-color:var(--pink);}
+  .btn-primary{width:100%; background:var(--pink); color:#fff; padding:15px; border-radius:16px;
+    font-weight:bold; font-size:17px; margin-top:20px; box-shadow:0 5px 0 #e070a0;}
+  .btn-ghost{width:100%; background:none; color:#b09; padding:12px; font-weight:bold; margin-top:6px;}
+  .btn-row{display:flex; gap:10px;}
+  .btn-sub{flex:1; background:var(--blue); color:#fff; padding:13px; border-radius:14px; font-weight:bold;
+    box-shadow:0 4px 0 #6fb0e0;}
+
+  /* book detail */
+  .detail-spine{height:120px; border-radius:16px; display:flex; align-items:center; justify-content:center;
+    font-size:50px; margin-bottom:14px;}
+  .stat-row{display:flex; justify-content:space-around; text-align:center; margin:14px 0;}
+  .stat-row .num{font-size:22px; font-weight:bold; color:var(--purple);}
+  .stat-row .lbl{font-size:11px; color:#a98;}
+  .quick{display:flex; gap:8px; margin:10px 0;}
+  .quick button{flex:1; background:var(--blue-soft); border-radius:14px; padding:12px 0; font-weight:bold; color:#4a8;}
+
+  /* celebration */
+  #celebrate{position:fixed; inset:0; z-index:80; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; background:#fff7fbe6; text-align:center;}
+  #celebrate .cem{font-size:90px; animation:pop .5s ease;}
+  #celebrate .cmsg{font-size:26px; font-weight:bold; color:var(--pink); margin:10px 0;}
+  #celebrate .csub{color:#a98;}
+  @keyframes pop{0%{transform:scale(0);}70%{transform:scale(1.25);}100%{transform:scale(1);}}
+  .confetti{position:fixed; top:-20px; font-size:22px; animation:fall linear forwards; z-index:79;}
+  @keyframes fall{to{transform:translateY(110vh) rotate(540deg);}}
+</style>
+</head>
+<body>
+
+<!-- ===== Profile select ===== -->
+<div id="profileScreen">
+  <div style="font-size:54px">📚</div>
+  <h1>よみとも</h1>
+  <div class="sub">よむのが、もっとすきになる</div>
+  <div class="avatar-grid" id="avatarGrid"></div>
+</div>
+
+<!-- ===== App ===== -->
+<div id="app" class="hidden">
+  <header>
+    <div class="hrow">
+      <div class="hface" id="hFace">🐰</div>
+      <div class="hinfo">
+        <div class="hname" id="hName">なまえ</div>
+        <div class="htitle" id="hTitle">Lv.1 よみはじめ</div>
+      </div>
+      <div class="streak" id="hStreak">🔥 0</div>
+    </div>
+    <div class="xpwrap">
+      <div class="xptop"><span id="xpLabel">0 / 100 XP</span><span id="xpLevel">Lv.1</span></div>
+      <div class="xpbar"><div class="xpfill" id="xpFill" style="width:0%"></div></div>
+    </div>
+  </header>
+
+  <main>
+    <!-- bookshelf -->
+    <section id="tab-shelf">
+      <div class="sectitle">📖 わたしの本だな</div>
+      <div id="shelf" class="shelf"></div>
+    </section>
+
+    <!-- badges -->
+    <section id="tab-badges" class="hidden">
+      <div class="sectitle">🏅 あつめたバッジ</div>
+      <div id="badgeGrid" class="badge-grid"></div>
+    </section>
+  </main>
+
+  <button class="fab" id="fabAdd">＋</button>
+
+  <nav>
+    <button class="nav-btn active" data-tab="shelf"><span class="ni">📚</span>本だな</button>
+    <button class="nav-btn" data-tab="badges"><span class="ni">🏅</span>バッジ</button>
+    <button class="nav-btn" id="switchBtn"><span class="ni">🔄</span>きりかえ</button>
+  </nav>
+</div>
+
+<div id="modalRoot"></div>
+<div id="celebrate" class="hidden"></div>
+
+<script>
+const GENRES = [
+  {k:'monogatari',e:'🧚',n:'ものがたり'},{k:'bouken',e:'🗺️',n:'ぼうけん'},
+  {k:'fushigi',e:'🔮',n:'ファンタジー'},{k:'doubutsu',e:'🐾',n:'どうぶつ'},
+  {k:'kagaku',e:'🔬',n:'かがく'},{k:'rekishi',e:'🏯',n:'れきし'},
+  {k:'suiri',e:'🔍',n:'なぞとき'},{k:'manga',e:'💭',n:'まんが・絵本'},
+  {k:'supotsu',e:'⚽',n:'スポーツ'},{k:'sonota',e:'✨',n:'そのほか'}
+];
+const SPINE_COLORS = ['#ffd6e8','#d8efff','#fff3c4','#d9f7e3','#e7ddff','#ffe0cc'];
+const TITLES = ['よみはじめ','ぴよぴよ読者','ほんのむし','ものがたり探検家','よみびと',
+  'ブックマスター','本の達人','よみの名人','ものしり博士','よみの王さま'];
+const AVATARS = ['🐰','🐱','🐶','🐻','🦊','🐼','🐯','🦁','🐧','🐢','🦄','🐸'];
+const BADGES = [
+  {id:'first',e:'🌱',n:'はじめの1冊',d:'1冊よんだ',ck:s=>s.finished>=1},
+  {id:'b5',e:'📗',n:'5冊たっせい',d:'5冊よんだ',ck:s=>s.finished>=5},
+  {id:'b10',e:'📚',n:'10冊たっせい',d:'10冊よんだ',ck:s=>s.finished>=10},
+  {id:'b20',e:'🏆',n:'20冊たっせい',d:'20冊よんだ',ck:s=>s.finished>=20},
+  {id:'p100',e:'💯',n:'100ページ',d:'のべ100p',ck:s=>s.pages>=100},
+  {id:'p500',e:'🚀',n:'500ページ',d:'のべ500p',ck:s=>s.pages>=500},
+  {id:'p1000',e:'🌟',n:'1000ページ',d:'のべ1000p',ck:s=>s.pages>=1000},
+  {id:'s3',e:'🔥',n:'3日れんぞく',d:'3日つづけた',ck:s=>s.bestStreak>=3},
+  {id:'s7',e:'⚡',n:'1週間れんぞく',d:'7日つづけた',ck:s=>s.bestStreak>=7},
+  {id:'s30',e:'👑',n:'1か月れんぞく',d:'30日つづけた',ck:s=>s.bestStreak>=30},
+  {id:'g3',e:'🎨',n:'いろいろよみ',d:'3ジャンル',ck:s=>s.genres>=3},
+  {id:'g5',e:'🌈',n:'なんでもよみ',d:'5ジャンル',ck:s=>s.genres>=5},
+];
+const FINISH_BONUS = 50;
+
+/* ---------- storage ---------- */
+const KEY='yomitomo_v1';
+let DB = load();
+function load(){ try{return JSON.parse(localStorage.getItem(KEY))||{profiles:[],current:null};}catch(e){return {profiles:[],current:null};} }
+function save(){ localStorage.setItem(KEY, JSON.stringify(DB)); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function today(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function P(){ return DB.profiles.find(p=>p.id===DB.current); }
+
+/* ---------- stats ---------- */
+function levelFromXp(xp){
+  let lvl=1, need=100, acc=0;
+  while(xp >= acc+need){ acc+=need; lvl++; need=100+(lvl-1)*50; }
+  return {level:lvl, into:xp-acc, span:need};
+}
+function streaks(logs){
+  const days=[...new Set(logs.map(l=>l.date))].sort();
+  if(!days.length) return {current:0,best:0};
+  const toN=d=>{const[y,m,da]=d.split('-').map(Number);return Date.UTC(y,m-1,da)/86400000;};
+  let best=1,run=1;
+  for(let i=1;i<days.length;i++){ if(toN(days[i])-toN(days[i-1])===1){run++;best=Math.max(best,run);}else run=1; }
+  // current: streak ending today or yesterday
+  const tn=toN(today()); const last=toN(days[days.length-1]);
+  let cur=0;
+  if(last===tn||last===tn-1){ cur=1; for(let i=days.length-1;i>0;i--){ if(toN(days[i])-toN(days[i-1])===1)cur++; else break; } }
+  return {current:cur, best:Math.max(best,cur)};
+}
+function stats(p){
+  const finished=p.books.filter(b=>b.status==='done').length;
+  const pages=p.logs.reduce((a,l)=>a+l.pages,0);
+  const xp=pages + finished*FINISH_BONUS;
+  const genres=new Set(p.books.filter(b=>b.status==='done').map(b=>b.genre)).size;
+  const st=streaks(p.logs);
+  return {finished,pages,xp,genres,current:st.current,bestStreak:st.best};
+}
+
+/* ---------- profile screen ---------- */
+function renderProfiles(){
+  const g=document.getElementById('avatarGrid'); g.innerHTML='';
+  DB.profiles.forEach(p=>{
+    const d=document.createElement('div'); d.className='pcard';
+    d.innerHTML=`<div class="face">${p.avatar}</div><div class="pname">${esc(p.name)}</div>`;
+    d.onclick=()=>{ DB.current=p.id; save(); openApp(); };
+    g.appendChild(d);
+  });
+  const add=document.createElement('div'); add.className='pcard add';
+  add.innerHTML=`<div class="face">＋</div><div class="pname">あたらしく</div>`;
+  add.onclick=newProfile; g.appendChild(add);
+}
+function newProfile(){
+  modal(`<h2>あなたはだれ？</h2>
+    <label>なまえ</label><input id="npName" maxlength="10" placeholder="なまえをいれてね">
+    <label>すきなアイコンをえらぼう</label>
+    <div class="genre-pick" id="avPick">${AVATARS.map((a,i)=>`<button class="gchip ${i===0?'sel':''}" data-av="${a}" style="font-size:24px">${a}</button>`).join('')}</div>
+    <button class="btn-primary" id="npSave">きめた！</button>`);
+  let av=AVATARS[0];
+  document.getElementById('avPick').onclick=e=>{const b=e.target.closest('[data-av]'); if(!b)return;
+    document.querySelectorAll('#avPick .gchip').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); av=b.dataset.av;};
+  document.getElementById('npSave').onclick=()=>{
+    const name=document.getElementById('npName').value.trim(); if(!name){alert('なまえをいれてね');return;}
+    const p={id:uid(),name,avatar:av,books:[],logs:[]}; DB.profiles.push(p); DB.current=p.id; save(); closeModal(); openApp();
+  };
+}
+
+/* ---------- app render ---------- */
+function openApp(){
+  document.getElementById('profileScreen').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  renderApp();
+}
+function renderApp(){
+  const p=P(); if(!p){backToProfiles();return;}
+  const s=stats(p); const lv=levelFromXp(s.xp);
+  document.getElementById('hFace').textContent=p.avatar;
+  document.getElementById('hName').textContent=p.name;
+  const tname=TITLES[Math.min(lv.level-1,TITLES.length-1)];
+  document.getElementById('hTitle').textContent=`Lv.${lv.level} ${tname}`;
+  document.getElementById('hStreak').textContent=`🔥 ${s.current}`;
+  document.getElementById('xpLabel').textContent=`${lv.into} / ${lv.span} XP`;
+  document.getElementById('xpLevel').textContent=`Lv.${lv.level}`;
+  document.getElementById('xpFill').style.width=(lv.into/lv.span*100)+'%';
+  renderShelf(p); renderBadges(s);
+}
+function renderShelf(p){
+  const el=document.getElementById('shelf');
+  if(!p.books.length){ el.innerHTML=`<div class="empty" style="grid-column:1/-1"><div class="big">📚</div>まだ本がないよ<br>＋ボタンで本をついかしてね</div>`; return; }
+  const order={reading:0,done:1};
+  const books=[...p.books].sort((a,b)=>(order[a.status]-order[b.status])||b.createdAt-a.createdAt);
+  el.innerHTML=books.map(b=>{
+    const g=GENRES.find(x=>x.k===b.genre)||GENRES[GENRES.length-1];
+    const col=SPINE_COLORS[hashc(b.id)%SPINE_COLORS.length];
+    const pct=b.totalPages?Math.min(100,Math.round(b.pagesRead/b.totalPages*100)):(b.status==='done'?100:0);
+    return `<div class="bookcard" data-id="${b.id}">
+      ${b.status==='done'?'<div class="donetag">よんだ！</div>':''}
+      <div class="spine" style="background:${col}">${g.e}</div>
+      <div class="btitle">${esc(b.title)}</div>
+      <div class="bmeta">${g.n}${b.totalPages?' ・ '+b.pagesRead+'/'+b.totalPages+'p':''}</div>
+      <div class="pbar"><div class="pfill" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.bookcard').forEach(c=>c.onclick=()=>bookDetail(c.dataset.id));
+}
+function renderBadges(s){
+  document.getElementById('badgeGrid').innerHTML=BADGES.map(b=>{
+    const got=b.ck(s);
+    return `<div class="badge ${got?'':'locked'}"><div class="bem">${got?b.e:'🔒'}</div>
+      <div class="bn">${b.n}</div><div class="bd">${b.d}</div></div>`;
+  }).join('');
+}
+
+/* ---------- add book ---------- */
+function addBook(){
+  let genre='monogatari';
+  modal(`<h2>本をついか 📖</h2>
+    <label>本のなまえ</label><input id="abTitle" placeholder="例：ぐりとぐら">
+    <label>さくしゃ（なくてもOK）</label><input id="abAuthor" placeholder="例：なかがわりえこ">
+    <label>ページすう（なくてもOK）</label><input id="abPages" type="number" inputmode="numeric" placeholder="例：32">
+    <label>ジャンル</label>
+    <div class="genre-pick" id="abGenre">${GENRES.map(g=>`<button class="gchip ${g.k==='monogatari'?'sel':''}" data-g="${g.k}">${g.e} ${g.n}</button>`).join('')}</div>
+    <button class="btn-primary" id="abSave">本だなにいれる</button>`);
+  document.getElementById('abGenre').onclick=e=>{const b=e.target.closest('[data-g]'); if(!b)return;
+    document.querySelectorAll('#abGenre .gchip').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); genre=b.dataset.g;};
+  document.getElementById('abSave').onclick=()=>{
+    const title=document.getElementById('abTitle').value.trim(); if(!title){alert('本のなまえをいれてね');return;}
+    const pages=parseInt(document.getElementById('abPages').value)||0;
+    const p=P(); p.books.push({id:uid(),title,author:document.getElementById('abAuthor').value.trim(),
+      totalPages:pages,genre,status:'reading',pagesRead:0,createdAt:Date.now(),finishedAt:null});
+    save(); closeModal(); renderApp();
+  };
+}
+
+/* ---------- book detail / logging ---------- */
+function bookDetail(id){
+  const p=P(); const b=p.books.find(x=>x.id===id); if(!b)return;
+  const g=GENRES.find(x=>x.k===b.genre)||GENRES[GENRES.length-1];
+  const col=SPINE_COLORS[hashc(b.id)%SPINE_COLORS.length];
+  const pct=b.totalPages?Math.min(100,Math.round(b.pagesRead/b.totalPages*100)):0;
+  modal(`<h2 style="font-size:18px">${esc(b.title)}</h2>
+    <div class="detail-spine" style="background:${col}">${g.e}</div>
+    <div style="text-align:center;color:#a98;font-size:13px">${b.author?esc(b.author)+'・':''}${g.n}</div>
+    <div class="stat-row">
+      <div><div class="num">${b.pagesRead}</div><div class="lbl">よんだページ</div></div>
+      <div><div class="num">${b.totalPages||'?'}</div><div class="lbl">ぜんページ</div></div>
+      <div><div class="num">${pct}%</div><div class="lbl">すすみ</div></div>
+    </div>
+    ${b.status==='done'?'<div style="text-align:center;color:var(--good);font-weight:bold">🎉 よみおわった！</div>':`
+    <label>きょう何ページよんだ？</label>
+    <div class="quick">
+      <button data-add="5">+5</button><button data-add="10">+10</button>
+      <button data-add="20">+20</button><button data-add="50">+50</button>
+    </div>
+    <input id="bdPages" type="number" inputmode="numeric" placeholder="ページすうをいれてね">
+    <button class="btn-primary" id="bdLog">きろくする ✏️</button>
+    <button class="btn-ghost" id="bdDone">✅ ぜんぶよみおわった</button>`}
+    <button class="btn-ghost" id="bdDel" style="color:#caa">この本をけす</button>`);
+
+  if(b.status!=='done'){
+    document.querySelector('.quick').onclick=e=>{const q=e.target.closest('[data-add]'); if(!q)return;
+      const inp=document.getElementById('bdPages'); inp.value=(parseInt(inp.value)||0)+parseInt(q.dataset.add);};
+    document.getElementById('bdLog').onclick=()=>{
+      const n=parseInt(document.getElementById('bdPages').value); if(!n||n<=0){alert('ページすうをいれてね');return;}
+      logReading(b,n,false);
+    };
+    document.getElementById('bdDone').onclick=()=>{
+      const remain=b.totalPages?Math.max(0,b.totalPages-b.pagesRead):0;
+      logReading(b,remain,true);
+    };
+  }
+  document.getElementById('bdDel').onclick=()=>{ if(confirm('この本をけしますか？'))
+    {p.books=p.books.filter(x=>x.id!==id); p.logs=p.logs.filter(l=>l.bookId!==id); save(); closeModal(); renderApp();} };
+}
+
+function logReading(b,pages,finish){
+  const p=P(); const before=stats(p); const beforeLv=levelFromXp(before.xp).level;
+  if(pages>0){ p.logs.push({id:uid(),bookId:b.id,date:today(),pages,ts:Date.now()}); b.pagesRead+=pages; }
+  if(b.totalPages && b.pagesRead>=b.totalPages){ b.pagesRead=b.totalPages; finish=true; }
+  let justFinished=false;
+  if(finish && b.status!=='done'){ b.status='done'; b.finishedAt=Date.now(); justFinished=true; }
+  save();
+  const after=stats(p); const afterLv=levelFromXp(after.xp).level;
+  const newBadges=BADGES.filter(bd=>bd.ck(after)&&!bd.ck(before));
+  closeModal(); renderApp();
+  // celebration priority: finished > levelup > badge > simple
+  if(justFinished) celebrate('🎉','よみおわったね！','すごい！1冊たっせい！', afterLv>beforeLv, newBadges);
+  else if(afterLv>beforeLv) celebrate('⭐','レベルアップ！',`Lv.${afterLv} になったよ！`, false, newBadges);
+  else if(newBadges.length) celebrate(newBadges[0].e,'バッジゲット！',newBadges[0].n+'をあつめた！',false,[]);
+  else toast(`+${pages}ページ よんだ！えらい！`);
+}
+
+/* ---------- celebrate ---------- */
+function celebrate(em,msg,sub,alsoLevel,badges){
+  confetti();
+  const c=document.getElementById('celebrate');
+  let extra='';
+  if(alsoLevel) extra+='<div class="csub">⭐ レベルアップもしたよ！</div>';
+  if(badges&&badges.length) extra+='<div class="csub">🏅 '+badges.map(b=>b.n).join('・')+' ゲット！</div>';
+  c.innerHTML=`<div class="cem">${em}</div><div class="cmsg">${msg}</div><div class="csub">${sub}</div>${extra}
+    <button class="btn-primary" style="width:auto;padding:14px 40px;margin-top:24px" onclick="document.getElementById('celebrate').classList.add('hidden')">やったー！</button>`;
+  c.classList.remove('hidden');
+}
+function confetti(){
+  const ems=['🎉','⭐','✨','🌟','💖','📚','🎊'];
+  for(let i=0;i<28;i++){ const s=document.createElement('div'); s.className='confetti';
+    s.textContent=ems[i%ems.length]; s.style.left=Math.random()*100+'vw';
+    s.style.animationDuration=(1.5+Math.random()*1.5)+'s'; s.style.animationDelay=(Math.random()*.5)+'s';
+    document.body.appendChild(s); setTimeout(()=>s.remove(),3500); }
+}
+let toastT;
+function toast(msg){
+  let t=document.getElementById('toast');
+  if(!t){t=document.createElement('div'); t.id='toast';
+    t.style.cssText='position:fixed;bottom:160px;left:50%;transform:translateX(-50%);background:#5b4a52;color:#fff;padding:12px 22px;border-radius:20px;font-weight:bold;z-index:90;box-shadow:0 6px 16px #0003;transition:opacity .3s';
+    document.body.appendChild(t);}
+  t.textContent=msg; t.style.opacity='1'; clearTimeout(toastT);
+  toastT=setTimeout(()=>t.style.opacity='0',1800);
+}
+
+/* ---------- modal helpers ---------- */
+function modal(html){
+  const r=document.getElementById('modalRoot');
+  r.innerHTML=`<div class="overlay"><div class="sheet">${html}</div></div>`;
+  r.querySelector('.overlay').onclick=e=>{ if(e.target.classList.contains('overlay')) closeModal(); };
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+
+/* ---------- nav ---------- */
+document.querySelectorAll('.nav-btn[data-tab]').forEach(btn=>btn.onclick=()=>{
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-shelf').classList.toggle('hidden',btn.dataset.tab!=='shelf');
+  document.getElementById('tab-badges').classList.toggle('hidden',btn.dataset.tab!=='badges');
+});
+document.getElementById('fabAdd').onclick=addBook;
+document.getElementById('switchBtn').onclick=backToProfiles;
+function backToProfiles(){
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('profileScreen').classList.remove('hidden');
+  renderProfiles();
+}
+
+/* ---------- utils ---------- */
+function esc(s){ return (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function hashc(s){ let h=0; for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return h; }
+
+/* ---------- boot ---------- */
+renderProfiles();
+if(DB.current && P()) openApp();
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
