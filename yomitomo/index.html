@@ -93,7 +93,11 @@
   .overlay{position:fixed; inset:0; background:#0006; display:flex; align-items:flex-end;
     justify-content:center; z-index:50;}
   .sheet{background:var(--bg); width:100%; max-width:520px; border-radius:26px 26px 0 0;
-    padding:22px 20px max(22px,env(safe-area-inset-bottom)); animation:up .25s ease;}
+    max-height:90vh; overflow-y:auto; -webkit-overflow-scrolling:touch; animation:up .25s ease;}
+  .sheet-head{position:sticky; top:0; height:0; z-index:10;}
+  .sheet-x{position:absolute; right:12px; top:10px; width:36px; height:36px; border-radius:50%;
+    background:#fff; color:#b88; font-size:22px; line-height:34px; box-shadow:0 2px 8px #0002; padding:0;}
+  .sheet-content{padding:18px 20px max(22px,env(safe-area-inset-bottom));}
   @keyframes up{from{transform:translateY(100%);}}
   .sheet h2{margin:0 0 16px; font-size:20px;}
   label{display:block; font-size:13px; font-weight:bold; margin:12px 0 5px; color:#967;}
@@ -391,15 +395,28 @@ function addBook(){
     const q=document.getElementById('abSearch').value.trim(); if(!q)return;
     const box=document.getElementById('abResults'); box.innerHTML='<div class="shint">さがしてるよ…⏳</div>';
     try{
-      const r=await fetch('https://ndlsearch.ndl.go.jp/api/opensearch?cnt=20&title='+encodeURIComponent(q));
+      // 子ども向け(児童書・絵本・YA)だけにしぼり、成人向けは構造的に除外する
+      // 判定: genre=児童/絵本/YA ／ NDC"E"(絵本) ／ 文字付きYコード(YU/YL/YA等) ／ 低番Yコード(Y1〜Y39)
+      const isChild=x=>{
+        if(/児童|絵本|ヤングアダルト/.test(x.genre)) return true;
+        const s=x.subj||'';
+        if(/(^|\/)E(\/|$)/.test(s)) return true;
+        if(/(^|\/)Y[A-Z]/.test(s)) return true;
+        const m=s.match(/(^|\/)Y([0-9]{1,2})(\/|$)/);
+        return !!(m && (+m[2])<=39);
+      };
+      const BAD=/官能|成人向|成人コミック|アダルト|ポルノ|18禁|十八禁|性愛|風俗嬢|猥褻|わいせつ|性描写|童貞|セックス|ヌード/i;
+      const r=await fetch('https://ndlsearch.ndl.go.jp/api/opensearch?cnt=400&title='+encodeURIComponent(q));
       const xml=new DOMParser().parseFromString(await r.text(),'application/xml');
       let items=[...xml.querySelectorAll('item')].map(it=>({
         title:(it.querySelector('title')?.textContent||'').trim(),
         author:(it.getElementsByTagName('dc:creator')[0]?.textContent||'').replace(/\s+/g,' ').trim(),
-        isbn:pickIsbn(it), pages:parsePages(it)
-      })).filter(x=>x.isbn && x.title);
-      const seen={}; items=items.filter(x=>seen[x.isbn]?false:(seen[x.isbn]=true)).slice(0,12);
-      if(!items.length){ box.innerHTML='<div class="shint">みつからなかったよ。手でいれてもOK！</div>'; return; }
+        isbn:pickIsbn(it), pages:parsePages(it),
+        genre:[...it.getElementsByTagName('dcndl:genre')].map(n=>n.textContent).join('/'),
+        subj:[...it.getElementsByTagName('dc:subject')].map(n=>n.textContent).join('/')
+      })).filter(x=>x.isbn && x.title && isChild(x) && !BAD.test(x.title+' '+x.subj+' '+x.genre));
+      const seen={}; items=items.filter(x=>seen[x.isbn]?false:(seen[x.isbn]=true)).slice(0,15);
+      if(!items.length){ box.innerHTML='<div class="shint">子ども向けの本がみつからなかったよ。タイトルをかえてさがすか、下に手でいれてもOK！</div>'; return; }
       // openBD covers (batch) as fallback source
       try{ const cr=await fetch('https://api.openbd.jp/v1/get?isbn='+items.map(x=>x.isbn).join(','));
         const cj=await cr.json(); cj.forEach((b,i)=>{ if(b&&b.summary&&b.summary.cover) items[i].obd=b.summary.cover; });
@@ -525,8 +542,9 @@ function toast(msg){
 /* ---------- modal helpers ---------- */
 function modal(html){
   const r=document.getElementById('modalRoot');
-  r.innerHTML=`<div class="overlay"><div class="sheet">${html}</div></div>`;
+  r.innerHTML=`<div class="overlay"><div class="sheet"><div class="sheet-head"><button class="sheet-x" aria-label="とじる">×</button></div><div class="sheet-content">${html}</div></div></div>`;
   r.querySelector('.overlay').onclick=e=>{ if(e.target.classList.contains('overlay')) closeModal(); };
+  r.querySelector('.sheet-x').onclick=closeModal;
 }
 function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
 
