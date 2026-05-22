@@ -112,6 +112,18 @@
   .sresult .st{font-weight:bold; font-size:13px; line-height:1.3;}
   .sresult .sa{font-size:11px; color:#a98; margin-top:2px;}
   .shint{color:#a98; font-size:12px; padding:8px 4px;}
+  .hgear{background:#fff; border-radius:50%; width:38px; height:38px; font-size:18px;
+    margin-left:8px; box-shadow:0 3px 0 #ffffff80; flex:0 0 38px;}
+  .lib-row{background:#fff; border-radius:12px; padding:10px 12px; margin-bottom:8px;
+    display:flex; align-items:center; gap:8px;}
+  .lib-row>div:first-child{flex:1; min-width:0;}
+  .lib-name{font-weight:bold; font-size:13px; margin-bottom:2px;}
+  .lib-st{display:inline-block; font-size:12px; font-weight:bold; padding:3px 8px;
+    border-radius:10px; margin:2px 4px 2px 0;}
+  .lib-st.green{background:#d9f7e3; color:#2e9e6b;}
+  .lib-st.orange{background:#ffe6c7; color:#c8841f;}
+  .lib-st.gray{background:#eee; color:#999;}
+  .lib-row a{color:var(--purple); font-size:12px; font-weight:bold; text-decoration:none;}
   .btn-primary{width:100%; background:var(--pink); color:#fff; padding:15px; border-radius:16px;
     font-weight:bold; font-size:17px; margin-top:20px; box-shadow:0 5px 0 #e070a0;}
   .btn-ghost{width:100%; background:none; color:#b09; padding:12px; font-weight:bold; margin-top:6px;}
@@ -159,6 +171,7 @@
         <div class="htitle" id="hTitle">Lv.1 よみはじめ</div>
       </div>
       <div class="streak" id="hStreak">🔥 0</div>
+      <button class="hgear" id="settingsBtn">⚙️</button>
     </div>
     <div class="xpwrap">
       <div class="xptop"><span id="xpLabel">0 / 100 XP</span><span id="xpLevel">Lv.1</span></div>
@@ -435,7 +448,18 @@ function bookDetail(id){
     <input id="bdPages" type="number" inputmode="numeric" placeholder="ページすうをいれてね">
     <button class="btn-primary" id="bdLog">きろくする ✏️</button>
     <button class="btn-ghost" id="bdDone">✅ ぜんぶよみおわった</button>`}
+    ${b.isbn?`<div id="libBox" style="margin-top:14px"><button class="btn-sub" id="libCheck" style="width:100%">📚 としょかんにあるかしらべる</button></div>`
+      :'<div class="shint" style="margin-top:14px">本をけんさくして登録すると、図書館にあるかしらべられるよ📚</div>'}
     <button class="btn-ghost" id="bdDel" style="color:#caa">この本をけす</button>`);
+
+  const lc=document.getElementById('libCheck');
+  if(lc) lc.onclick=async()=>{
+    if(!calilLibs().length){ closeModal(); settingsSheet(); return; }
+    const box=document.getElementById('libBox');
+    box.innerHTML='<div class="shint">としょかんをしらべています…⏳（10びょうくらいまってね）</div>';
+    const r=await calilCheck(b.isbn, calilLibs().map(x=>x.systemid));
+    renderLib(box, b.isbn, r);
+  };
 
   if(b.status!=='done'){
     document.querySelector('.quick').onclick=e=>{const q=e.target.closest('[data-add]'); if(!q)return;
@@ -533,6 +557,71 @@ function isbn13to10(isbn){ isbn=(isbn||'').replace(/[^0-9Xx]/g,'');
 function amzCover(isbn){ const i=isbn13to10(isbn); return i?('https://images-na.ssl-images-amazon.com/images/P/'+i+'.09.LZZZZZZZ.jpg'):''; }
 function imgWorks(u){ return new Promise(r=>{ const im=new Image();
   im.onload=()=>r(im.naturalWidth>2); im.onerror=()=>r(false); im.src=u; setTimeout(()=>r(false),5000); }); }
+
+/* ---------- library (Calil API) ---------- */
+const CALIL_KEY='46eba3c6c87caee7bb7165d804f991eb';
+const PREFS=['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県','茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県','新潟県','富山県','石川県','福井県','山梨県','長野県','岐阜県','静岡県','愛知県','三重県','滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県','鳥取県','島根県','岡山県','広島県','山口県','徳島県','香川県','愛媛県','高知県','福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'];
+function calilLibs(){ return DB.calilLibs||(DB.calilLibs=[]); }
+function jsonp(url){ return new Promise(res=>{ const cb='__cl'+Math.random().toString(36).slice(2);
+  const s=document.createElement('script');
+  const fin=v=>{ if(window[cb]){ delete window[cb]; } if(s.parentNode) s.remove(); res(v); };
+  window[cb]=d=>fin(d); s.onerror=()=>fin(null);
+  s.src=url+(url.includes('?')?'&':'?')+'callback='+cb; document.head.appendChild(s);
+  setTimeout(()=>{ if(window[cb]) fin(null); },11000); }); }
+async function calilCheck(isbn, systemids){
+  const base='https://api.calil.jp/check?appkey='+CALIL_KEY+'&format=json';
+  let r=await jsonp(base+'&isbn='+encodeURIComponent(isbn)+'&systemid='+encodeURIComponent(systemids.join(',')));
+  let n=0; while(r && r.continue===1 && n<10){ await new Promise(z=>setTimeout(z,2000));
+    r=await jsonp(base+'&session='+encodeURIComponent(r.session)); n++; }
+  return r;
+}
+function stCls(s){ if(/可|あり/.test(s)) return 'green'; if(/中|予約/.test(s)) return 'orange'; return 'gray'; }
+function renderLib(box, isbn, r){
+  if(!r || !r.books){ box.innerHTML='<div class="shint">うまくしらべられなかったよ。もういちど試してね。</div>'; return; }
+  const data=r.books[isbn]||{}; const libs=calilLibs();
+  box.innerHTML='<label>としょかんの けっか</label>'+libs.map(L=>{
+    const d=data[L.systemid]||{}; const lk=d.libkey||{}; const branches=Object.keys(lk);
+    let inner = branches.length
+      ? branches.map(bn=>`<span class="lib-st ${stCls(lk[bn])}">${esc(bn)}：${esc(lk[bn])}</span>`).join('')
+      : '<span class="lib-st gray">このとしょかんには なし</span>';
+    const rv = (branches.length && d.reserveurl) ? ` <a href="${esc(d.reserveurl)}" target="_blank" rel="noopener">予約ページ→</a>` : '';
+    return `<div class="lib-row"><div><div class="lib-name">${esc(L.systemname)}</div><div>${inner}${rv}</div></div></div>`;
+  }).join('');
+}
+function settingsSheet(){
+  function render(){
+    const libs=calilLibs();
+    modal(`<h2>としょかんの せってい 📚</h2>
+      <div class="shint">よく行くとしょかんをえらぶと、本がかりられるかしらべられるよ（5つまで）。</div>
+      <label>えらんだ としょかん</label>
+      <div id="selLibs">${libs.length?libs.map((L,i)=>`<div class="lib-row"><div class="lib-name">${esc(L.systemname)}</div><button class="gchip" data-rm="${i}">けす</button></div>`).join(''):'<div class="shint">まだないよ</div>'}</div>
+      <label>としょかんを さがす</label>
+      <select id="stPref">${PREFS.map(p=>`<option ${p==='東京都'?'selected':''}>${p}</option>`).join('')}</select>
+      <div class="btn-row" style="margin-top:8px"><input id="stCity" placeholder="市区町村（例：武蔵野市）" style="flex:1"><button class="btn-sub" id="stSearch" style="flex:0 0 70px">さがす</button></div>
+      <div id="stResults"></div>
+      <button class="btn-primary" id="stClose">とじる</button>`);
+    document.getElementById('selLibs').onclick=e=>{ const b=e.target.closest('[data-rm]'); if(!b)return;
+      libs.splice(+b.dataset.rm,1); save(); render(); };
+    document.getElementById('stClose').onclick=closeModal;
+    document.getElementById('stSearch').onclick=doLibSearch;
+    document.getElementById('stCity').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();doLibSearch();} });
+  }
+  async function doLibSearch(){
+    const pref=document.getElementById('stPref').value, city=document.getElementById('stCity').value.trim();
+    const box=document.getElementById('stResults'); box.innerHTML='<div class="shint">さがしてるよ…⏳</div>';
+    const url='https://api.calil.jp/library?appkey='+CALIL_KEY+'&format=json&pref='+encodeURIComponent(pref)+(city?'&city='+encodeURIComponent(city):'');
+    const arr=await jsonp(url);
+    if(!Array.isArray(arr)||!arr.length){ box.innerHTML='<div class="shint">みつからなかったよ。市区町村のかきかたをかえてみてね。</div>'; return; }
+    const seen={}, sys=[]; arr.forEach(l=>{ if(!seen[l.systemid]){ seen[l.systemid]=1; sys.push({systemid:l.systemid,systemname:l.systemname,city:l.city}); } });
+    box.innerHTML=sys.slice(0,40).map((s,i)=>`<div class="sresult" data-i="${i}"><div style="flex:1;min-width:0"><div class="st">${esc(s.systemname)}</div><div class="sa">${esc(s.city||'')}</div></div><div class="gchip">＋えらぶ</div></div>`).join('');
+    box.querySelectorAll('.sresult').forEach(el=>el.onclick=()=>{ const s=sys[el.dataset.i], libs=calilLibs();
+      if(libs.find(x=>x.systemid===s.systemid)){ toast('もうえらんでるよ'); return; }
+      if(libs.length>=5){ toast('としょかんは5つまでだよ'); return; }
+      libs.push(s); save(); toast(s.systemname+'をえらんだ！'); render(); });
+  }
+  render();
+}
+document.getElementById('settingsBtn').onclick=settingsSheet;
 
 /* ---------- boot ---------- */
 renderProfiles();
