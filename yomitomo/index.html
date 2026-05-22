@@ -349,10 +349,14 @@ function renderBadges(s){
 
 /* ---------- add book ---------- */
 function addBook(){
-  let genre='monogatari', coverUrl='', isbn='';
+  let genre='monogatari', coverUrl='', isbn='', scope='all';
   modal(`<h2>本をついか 📖</h2>
     <label>本をさがす 🔎</label>
-    <div class="btn-row"><input id="abSearch" placeholder="タイトルでけんさく" style="flex:1">
+    <div class="genre-pick" id="abScope">
+      <button class="gchip sel" data-scope="all">📚 ぜんぶ</button>
+      <button class="gchip" data-scope="kids">🧒 児童書だけ</button>
+    </div>
+    <div class="btn-row" style="margin-top:8px"><input id="abSearch" placeholder="タイトルでけんさく" style="flex:1">
       <button class="btn-sub" id="abSearchBtn" style="flex:0 0 70px">さがす</button></div>
     <div id="abResults"></div>
     <label>本のなまえ</label><input id="abTitle" placeholder="例：ぐりとぐら">
@@ -363,6 +367,9 @@ function addBook(){
     <button class="btn-primary" id="abSave">本だなにいれる</button>`);
   document.getElementById('abGenre').onclick=e=>{const b=e.target.closest('[data-g]'); if(!b)return;
     document.querySelectorAll('#abGenre .gchip').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); genre=b.dataset.g;};
+  document.getElementById('abScope').onclick=e=>{const b=e.target.closest('[data-scope]'); if(!b)return;
+    document.querySelectorAll('#abScope .gchip').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); scope=b.dataset.scope;
+    if(document.getElementById('abSearch').value.trim()) doSearch();};
 
   function normIsbn(s){ s=(s||'').replace(/[^0-9Xx]/g,'');
     if(s.length===10){ const core='978'+s.slice(0,9); let sum=0;
@@ -395,22 +402,31 @@ function addBook(){
     const q=document.getElementById('abSearch').value.trim(); if(!q)return;
     const box=document.getElementById('abResults'); box.innerHTML='<div class="shint">さがしてるよ…⏳</div>';
     try{
-      // 楽天ブックス・児童書ジャンル(001003=絵本・児童書・図鑑)・人気順(売れ筋)。
-      // 成人向けは児童書ジャンルに含まれないため構造的に除外される。
+      // 楽天ブックス・人気順(売れ筋)。scope='kids'は児童書ジャンル(001003)のみ=成人向けを構造的に除外。
+      // scope='all'は本全体(001)を対象にし、成人向けジャンル＋キーワードで除外する。
+      const genreId = scope==='kids' ? '001003' : '001';
       const url='https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404'
         +'?format=json&applicationId='+RAKUTEN_APP_ID+'&accessKey='+RAKUTEN_ACCESS_KEY
-        +'&booksGenreId=001003&sort=sales&hits=20&title='+encodeURIComponent(q);
+        +'&booksGenreId='+genreId+'&sort=sales&hits=30&title='+encodeURIComponent(q);
       const r=await fetch(url); const j=await r.json();
       if(!j.Items || j.errors){ box.innerHTML='<div class="shint">うまくさがせなかったよ。ちがう言葉でためすか、下に手でいれてね。</div>'; return; }
+      // 成人向け除外: ジャンル(BL/TL/グラビア写真集/成年コミック誌)＋キーワード
+      const DENYG=/(^|\/)(001021|001029|001013001|001001003014|001001003060|001001003007)/;
+      const BAD=/官能|エロ|18禁|十八禁|成人向|アダルト|ポルノ|ヌード|猥褻|わいせつ|性描写|性的|童貞|セックス|淫|姦/i;
       const seen={};
-      const items=j.Items.map(o=>o.Item).map(it=>({
+      let items=j.Items.map(o=>o.Item).filter(it=>{
+        if(scope==='kids') return true;
+        if(DENYG.test(it.booksGenreId||'')) return false;
+        if(BAD.test((it.title||'')+' '+(it.author||'')+' '+(it.seriesName||'')+' '+(it.itemCaption||''))) return false;
+        return true;
+      }).map(it=>({
         title:(it.title||'').trim(),
         author:(it.author||'').replace(/\s+/g,' ').trim(),
         publisher:(it.publisherName||'').trim(),
         pages:0,
         isbn:(it.isbn||'').replace(/[^0-9Xx]/g,''),
         cover:(it.largeImageUrl||it.mediumImageUrl||'').replace('http://','https://')
-      })).filter(x=>x.title && x.isbn).filter(x=>seen[x.isbn]?false:(seen[x.isbn]=true));
+      })).filter(x=>x.title && x.isbn).filter(x=>seen[x.isbn]?false:(seen[x.isbn]=true)).slice(0,20);
       if(!items.length){ box.innerHTML='<div class="shint">みつからなかったよ。ちがう言葉でためすか、下に手でいれてね。</div>'; return; }
       renderResults(items);
     }catch(e){ box.innerHTML='<div class="shint">ネットにつながらないみたい。手でいれてね。</div>'; }
