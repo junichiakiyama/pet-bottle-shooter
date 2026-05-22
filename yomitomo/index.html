@@ -381,7 +381,7 @@ function addBook(){
     box.innerHTML=items.map((x,i)=>`<div class="sresult" data-i="${i}">
       ${x.cover?`<img src="${esc(x.cover)}" alt="">`:'<div style="width:36px;height:50px;background:var(--pink-soft);border-radius:5px;flex:0 0 36px"></div>'}
       <div style="flex:1;min-width:0"><div class="st">${esc(x.title)}</div>
-      <div class="sa">${esc(x.author)}${x.pages?' ・ '+x.pages+'p':''}</div></div></div>`).join('');
+      <div class="sa">${esc(x.author)}${x.publisher?' ・ '+esc(x.publisher):''}</div></div></div>`).join('');
     box.querySelectorAll('.sresult').forEach(el=>el.onclick=()=>{
       const x=items[el.dataset.i];
       document.getElementById('abTitle').value=x.title;
@@ -395,38 +395,23 @@ function addBook(){
     const q=document.getElementById('abSearch').value.trim(); if(!q)return;
     const box=document.getElementById('abResults'); box.innerHTML='<div class="shint">さがしてるよ…⏳</div>';
     try{
-      // 子ども向け(児童書・絵本・YA)だけにしぼり、成人向けは構造的に除外する
-      // 判定: genre=児童/絵本/YA ／ NDC"E"(絵本) ／ 文字付きYコード(YU/YL/YA等) ／ 低番Yコード(Y1〜Y39)
-      const isChild=x=>{
-        if(/児童|絵本|ヤングアダルト/.test(x.genre)) return true;
-        const s=x.subj||'';
-        if(/(^|\/)E(\/|$)/.test(s)) return true;
-        if(/(^|\/)Y[A-Z]/.test(s)) return true;
-        const m=s.match(/(^|\/)Y([0-9]{1,2})(\/|$)/);
-        return !!(m && (+m[2])<=39);
-      };
-      const BAD=/官能|成人向|成人コミック|アダルト|ポルノ|18禁|十八禁|性愛|風俗嬢|猥褻|わいせつ|性描写|童貞|セックス|ヌード/i;
-      const r=await fetch('https://ndlsearch.ndl.go.jp/api/opensearch?cnt=400&title='+encodeURIComponent(q));
-      const xml=new DOMParser().parseFromString(await r.text(),'application/xml');
-      let items=[...xml.querySelectorAll('item')].map(it=>({
-        title:(it.querySelector('title')?.textContent||'').trim(),
-        author:(it.getElementsByTagName('dc:creator')[0]?.textContent||'').replace(/\s+/g,' ').trim(),
-        isbn:pickIsbn(it), pages:parsePages(it),
-        genre:[...it.getElementsByTagName('dcndl:genre')].map(n=>n.textContent).join('/'),
-        subj:[...it.getElementsByTagName('dc:subject')].map(n=>n.textContent).join('/')
-      })).filter(x=>x.isbn && x.title && isChild(x) && !BAD.test(x.title+' '+x.subj+' '+x.genre));
-      const seen={}; items=items.filter(x=>seen[x.isbn]?false:(seen[x.isbn]=true)).slice(0,15);
-      if(!items.length){ box.innerHTML='<div class="shint">子ども向けの本がみつからなかったよ。タイトルをかえてさがすか、下に手でいれてもOK！</div>'; return; }
-      // openBD covers (batch) as fallback source
-      try{ const cr=await fetch('https://api.openbd.jp/v1/get?isbn='+items.map(x=>x.isbn).join(','));
-        const cj=await cr.json(); cj.forEach((b,i)=>{ if(b&&b.summary&&b.summary.cover) items[i].obd=b.summary.cover; });
-      }catch(e){}
-      // resolve a real, loadable cover per item: Amazon first, then openBD
-      await Promise.all(items.map(async x=>{
-        const amz=amzCover(x.isbn);
-        if(amz && await imgWorks(amz)){ x.cover=amz; return; }
-        if(x.obd && await imgWorks(x.obd)){ x.cover=x.obd; }
-      }));
+      // 楽天ブックス・児童書ジャンル(001003=絵本・児童書・図鑑)・人気順(売れ筋)。
+      // 成人向けは児童書ジャンルに含まれないため構造的に除外される。
+      const url='https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404'
+        +'?format=json&applicationId='+RAKUTEN_APP_ID+'&accessKey='+RAKUTEN_ACCESS_KEY
+        +'&booksGenreId=001003&sort=sales&hits=20&title='+encodeURIComponent(q);
+      const r=await fetch(url); const j=await r.json();
+      if(!j.Items || j.errors){ box.innerHTML='<div class="shint">うまくさがせなかったよ。ちがう言葉でためすか、下に手でいれてね。</div>'; return; }
+      const seen={};
+      const items=j.Items.map(o=>o.Item).map(it=>({
+        title:(it.title||'').trim(),
+        author:(it.author||'').replace(/\s+/g,' ').trim(),
+        publisher:(it.publisherName||'').trim(),
+        pages:0,
+        isbn:(it.isbn||'').replace(/[^0-9Xx]/g,''),
+        cover:(it.largeImageUrl||it.mediumImageUrl||'').replace('http://','https://')
+      })).filter(x=>x.title && x.isbn).filter(x=>seen[x.isbn]?false:(seen[x.isbn]=true));
+      if(!items.length){ box.innerHTML='<div class="shint">みつからなかったよ。ちがう言葉でためすか、下に手でいれてね。</div>'; return; }
       renderResults(items);
     }catch(e){ box.innerHTML='<div class="shint">ネットにつながらないみたい。手でいれてね。</div>'; }
   }
@@ -575,6 +560,13 @@ function isbn13to10(isbn){ isbn=(isbn||'').replace(/[^0-9Xx]/g,'');
 function amzCover(isbn){ const i=isbn13to10(isbn); return i?('https://images-na.ssl-images-amazon.com/images/P/'+i+'.09.LZZZZZZZ.jpg'):''; }
 function imgWorks(u){ return new Promise(r=>{ const im=new Image();
   im.onload=()=>r(im.naturalWidth>2); im.onerror=()=>r(false); im.src=u; setTimeout(()=>r(false),5000); }); }
+
+/* ---------- book search (Rakuten Books API) ---------- */
+// 新・楽天API: applicationId(UUID)とaccessKey(pk_)の両方が必要。
+// Originヘッダー(ブラウザが自動付与する公開ドメイン)で許可判定されるため、
+// 登録ドメイン(junichiakiyama.github.io)から実行したときのみ動作する。
+const RAKUTEN_APP_ID='757ac6ca-b854-4645-932a-3725a82724cb';
+const RAKUTEN_ACCESS_KEY='pk_lQena2LVpq3OoBwiubeyBJvy3ORbsR5qiI9yOlHiZiT';
 
 /* ---------- library (Calil API) ---------- */
 const CALIL_KEY='46eba3c6c87caee7bb7165d804f991eb';
