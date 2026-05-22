@@ -38,6 +38,13 @@
   .hrow{display:flex; align-items:center; gap:12px;}
   .hface{font-size:40px; background:#fff; border-radius:50%; width:62px; height:62px;
     display:flex; align-items:center; justify-content:center; box-shadow:0 4px 0 #ffffff80;}
+  .hface-wrap{position:relative; border-radius:50%; padding:3px; flex:0 0 auto;}
+  .hface-wrap.glow{animation:glow 1.6s ease-in-out infinite;}
+  @keyframes glow{0%,100%{filter:drop-shadow(0 0 2px #ffcf3f);}50%{filter:drop-shadow(0 0 9px #ff8fbf);}}
+  .hbadge{position:absolute; right:-3px; bottom:-3px; font-size:20px; line-height:1;
+    filter:drop-shadow(0 1px 1px #0004);}
+  .pcard .face-wrap{position:relative; display:inline-block; border-radius:50%; padding:3px;}
+  .pcard .pbadge{position:absolute; right:-2px; bottom:-2px; font-size:18px;}
   .hinfo{flex:1;}
   .hname{font-weight:bold; font-size:18px;}
   .htitle{font-size:13px; color:var(--purple); font-weight:bold;}
@@ -169,7 +176,7 @@
 <div id="app" class="hidden">
   <header>
     <div class="hrow">
-      <div class="hface" id="hFace">🐰</div>
+      <div class="hface-wrap" id="hFaceWrap"><div class="hface" id="hFace">🐰</div><span class="hbadge" id="hBadge"></span></div>
       <div class="hinfo">
         <div class="hname" id="hName">なまえ</div>
         <div class="htitle" id="hTitle">Lv.1 よみはじめ</div>
@@ -220,7 +227,16 @@ const GENRES = [
 const SPINE_COLORS = ['#ffd6e8','#d8efff','#fff3c4','#d9f7e3','#e7ddff','#ffe0cc'];
 const TITLES = ['よみはじめ','ぴよぴよ読者','ほんのむし','ものがたり探検家','よみびと',
   'ブックマスター','本の達人','よみの名人','ものしり博士','よみの王さま'];
-const AVATARS = ['🐰','🐱','🐶','🐻','🦊','🐼','🐯','🦁','🐧','🐢','🦄','🐸'];
+const AVATARS = ['🐰','🐱','🐶','🐻','🦊','🐼','🐯','🦁','🐧','🐢','🦄','🐸','🐹','🐨','🐮','🐷','🐵','🐔','🦉','🦋','🐙','🐳','🦕','🐝','🦖','🐈','🦩','🐲','🦊','🦝'];
+// レベルに応じてアイコンが成長する装飾（リング・かんむり・かがやき）
+function levelDeco(level){
+  if(level>=16) return {ring:'conic-gradient(from 0deg,#ffcf3f,#ff8fbf,#9fd3ff,#8a5cff,#5ad19a,#ffcf3f)',badge:'👑',glow:true};
+  if(level>=12) return {ring:'linear-gradient(135deg,#ffcf3f,#ff8fbf,#9fd3ff)',badge:'👑',glow:false};
+  if(level>=8)  return {ring:'#8a5cff',badge:'🌟',glow:false};
+  if(level>=5)  return {ring:'#ffcf3f',badge:'⭐',glow:false};
+  if(level>=3)  return {ring:'#ffb3d1',badge:'✨',glow:false};
+  return {ring:'',badge:'',glow:false};
+}
 const BADGES = [
   {id:'first',e:'🌱',n:'はじめの1冊',d:'1冊よんだ',ck:s=>s.finished>=1},
   {id:'b5',e:'📗',n:'5冊たっせい',d:'5冊よんだ',ck:s=>s.finished>=5},
@@ -278,7 +294,8 @@ function renderProfiles(){
   const g=document.getElementById('avatarGrid'); g.innerHTML='';
   DB.profiles.forEach(p=>{
     const d=document.createElement('div'); d.className='pcard';
-    d.innerHTML=`<div class="face">${p.avatar}</div><div class="pname">${esc(p.name)}</div>`;
+    const lv=levelFromXp(stats(p).xp).level; const dc=levelDeco(lv);
+    d.innerHTML=`<div class="face-wrap ${dc.glow?'glow':''}" style="background:${dc.ring||'transparent'}"><div class="face">${p.avatar}</div>${dc.badge?`<span class="pbadge">${dc.badge}</span>`:''}</div><div class="pname">${esc(p.name)}</div><div style="font-size:11px;color:#b09;font-weight:bold">Lv.${lv}</div>`;
     d.onclick=()=>{ DB.current=p.id; save(); openApp(); };
     g.appendChild(d);
   });
@@ -312,6 +329,10 @@ function renderApp(){
   const s=stats(p); const lv=levelFromXp(s.xp);
   document.getElementById('hFace').textContent=p.avatar;
   document.getElementById('hName').textContent=p.name;
+  const deco=levelDeco(lv.level); const wrap=document.getElementById('hFaceWrap');
+  wrap.style.background=deco.ring||'transparent';
+  wrap.classList.toggle('glow', !!deco.glow);
+  document.getElementById('hBadge').textContent=deco.badge;
   const tname=TITLES[Math.min(lv.level-1,TITLES.length-1)];
   document.getElementById('hTitle').textContent=`Lv.${lv.level} ${tname}`;
   document.getElementById('hStreak').textContent=`🔥 ${s.current}`;
@@ -393,9 +414,12 @@ function addBook(){
       const x=items[el.dataset.i];
       document.getElementById('abTitle').value=x.title;
       document.getElementById('abAuthor').value=x.author;
-      if(x.pages) document.getElementById('abPages').value=x.pages;
       coverUrl=x.cover||''; isbn=x.isbn||'';
       box.querySelectorAll('.sresult').forEach(z=>z.classList.remove('sel')); el.classList.add('sel');
+      // ページ数をISBNからしらべて自動入力
+      const pi=document.getElementById('abPages');
+      if(x.isbn){ pi.placeholder='ページすうをしらべています…'; const want=x.isbn;
+        fetchPages(x.isbn).then(n=>{ if(isbn===want){ if(n>0) pi.value=n; pi.placeholder='例：32'; } }); }
     });
   }
   async function doSearch(){
@@ -465,6 +489,13 @@ function bookDetail(id){
     </div>
     <input id="bdPages" type="number" inputmode="numeric" placeholder="ページすうをいれてね">
     <button class="btn-primary" id="bdLog">きろくする ✏️</button>
+    <div class="shint" style="text-align:center;margin:10px 0 4px">またはページのはんいで</div>
+    <div class="btn-row" style="align-items:center;gap:6px">
+      <input id="bdFrom" type="number" inputmode="numeric" placeholder="何ページから" style="flex:1">
+      <span style="color:#a98;font-weight:bold">〜</span>
+      <input id="bdTo" type="number" inputmode="numeric" placeholder="何ページまで" style="flex:1">
+    </div>
+    <button class="btn-sub" id="bdLogRange" style="width:100%;margin-top:8px">このはんいをきろく ✏️</button>
     <button class="btn-ghost" id="bdDone">✅ ぜんぶよみおわった</button>`}
     ${b.isbn?`<div id="libBox" style="margin-top:14px"><button class="btn-sub" id="libCheck" style="width:100%">📚 としょかんにあるかしらべる</button></div>`
       :'<div class="shint" style="margin-top:14px">本をけんさくして登録すると、図書館にあるかしらべられるよ📚</div>'}
@@ -474,9 +505,18 @@ function bookDetail(id){
   if(lc) lc.onclick=async()=>{
     if(!calilLibs().length){ closeModal(); settingsSheet(); return; }
     const box=document.getElementById('libBox');
-    box.innerHTML='<div class="shint">としょかんをしらべています…⏳（10びょうくらいまってね）</div>';
-    const r=await calilCheck(b.isbn, calilLibs().map(x=>x.systemid));
-    renderLib(box, b.isbn, r);
+    const sys=calilLibs().map(x=>x.systemid);
+    box.innerHTML='<div class="shint">としょかんをしらべています…⏳（20びょうくらいまってね）</div>';
+    // まず登録ISBNで照会（速い）。見つからなければ、同じ本の別の版もまとめて照会する。
+    let isbns=[b.isbn];
+    let r=await calilCheck(isbns, sys);
+    if(!anyHeld(r, isbns)){
+      box.innerHTML='<div class="shint">ほかの版もしらべています…⏳（もうすこしまってね）</div>';
+      isbns=await gatherEditionIsbns(b);
+      if(!isbns.includes(b.isbn)) isbns.unshift(b.isbn);
+      r=await calilCheck(isbns, sys);
+    }
+    renderLib(box, isbns, r);
   };
 
   if(b.status!=='done'){
@@ -485,6 +525,11 @@ function bookDetail(id){
     document.getElementById('bdLog').onclick=()=>{
       const n=parseInt(document.getElementById('bdPages').value); if(!n||n<=0){alert('ページすうをいれてね');return;}
       logReading(b,n,false);
+    };
+    document.getElementById('bdLogRange').onclick=()=>{
+      const from=parseInt(document.getElementById('bdFrom').value), to=parseInt(document.getElementById('bdTo').value);
+      if(!from||!to||to<from){ alert('「何ページから」より「何ページまで」を大きくしてね'); return; }
+      logReading(b, to-from+1, false, to);
     };
     document.getElementById('bdDone').onclick=()=>{
       const remain=b.totalPages?Math.max(0,b.totalPages-b.pagesRead):0;
@@ -495,9 +540,10 @@ function bookDetail(id){
     {p.books=p.books.filter(x=>x.id!==id); p.logs=p.logs.filter(l=>l.bookId!==id); save(); closeModal(); renderApp();} };
 }
 
-function logReading(b,pages,finish){
+function logReading(b,pages,finish,absPage){
   const p=P(); const before=stats(p); const beforeLv=levelFromXp(before.xp).level;
-  if(pages>0){ p.logs.push({id:uid(),bookId:b.id,date:today(),pages,ts:Date.now()}); b.pagesRead+=pages; }
+  if(pages>0){ p.logs.push({id:uid(),bookId:b.id,date:today(),pages,ts:Date.now()});
+    if(absPage!=null) b.pagesRead=Math.max(b.pagesRead, absPage); else b.pagesRead+=pages; }
   if(b.totalPages && b.pagesRead>=b.totalPages){ b.pagesRead=b.totalPages; finish=true; }
   let justFinished=false;
   if(finish && b.status!=='done'){ b.status='done'; b.finishedAt=Date.now(); justFinished=true; }
@@ -576,6 +622,19 @@ function isbn13to10(isbn){ isbn=(isbn||'').replace(/[^0-9Xx]/g,'');
 function amzCover(isbn){ const i=isbn13to10(isbn); return i?('https://images-na.ssl-images-amazon.com/images/P/'+i+'.09.LZZZZZZZ.jpg'):''; }
 function imgWorks(u){ return new Promise(r=>{ const im=new Image();
   im.onload=()=>r(im.naturalWidth>2); im.onerror=()=>r(false); im.src=u; setTimeout(()=>r(false),5000); }); }
+// ISBNからページ数をNDLで取得(楽天にページ数が無いため)。絵本など「1冊」表記はページ数なし→0。
+async function fetchPages(isbn){
+  if(!isbn) return 0;
+  try{
+    const r=await fetch('https://ndlsearch.ndl.go.jp/api/opensearch?isbn='+encodeURIComponent(isbn));
+    const xml=new DOMParser().parseFromString(await r.text(),'application/xml');
+    for(const it of xml.querySelectorAll('item')){
+      const ex=it.getElementsByTagName('dc:extent')[0]||it.getElementsByTagName('dcndl:extent')[0];
+      if(ex){ const m=ex.textContent.match(/(\d+)\s*p/); if(m) return +m[1]; }
+    }
+  }catch(e){}
+  return 0;
+}
 
 /* ---------- book search (Rakuten Books API) ---------- */
 // 新・楽天API: applicationId(UUID)とaccessKey(pk_)の両方が必要。
@@ -594,23 +653,62 @@ function jsonp(url){ return new Promise(res=>{ const cb='__cl'+Math.random().toS
   window[cb]=d=>fin(d); s.onerror=()=>fin(null);
   s.src=url+(url.includes('?')?'&':'?')+'callback='+cb; document.head.appendChild(s);
   setTimeout(()=>{ if(window[cb]) fin(null); },11000); }); }
-async function calilCheck(isbn, systemids){
+async function calilCheck(isbns, systemids){
   const base='https://api.calil.jp/check?appkey='+CALIL_KEY+'&format=json';
-  let r=await jsonp(base+'&isbn='+encodeURIComponent(isbn)+'&systemid='+encodeURIComponent(systemids.join(',')));
-  let n=0; while(r && r.continue===1 && n<10){ await new Promise(z=>setTimeout(z,2000));
+  const isbnParam=(Array.isArray(isbns)?isbns:[isbns]).join(',');
+  let r=await jsonp(base+'&isbn='+isbnParam+'&systemid='+systemids.join(','));
+  let n=0; while(r && r.continue===1 && n<12){ await new Promise(z=>setTimeout(z,2000));
     r=await jsonp(base+'&session='+encodeURIComponent(r.session)); n++; }
   return r;
 }
+// 蔵書チェック結果で、いずれかの図書館・いずれかのISBNが所蔵されているか
+function anyHeld(r, isbns){
+  if(!r || !r.books) return false;
+  return isbns.some(isbn=>{ const d=r.books[isbn]; if(!d) return false;
+    return Object.values(d).some(v=>v && v.libkey && Object.keys(v.libkey).length); });
+}
+// 同じ本の別の版(ISBN)をNDLのタイトル検索で集める（図書館は版違いで所蔵することが多いため）
+async function gatherEditionIsbns(b){
+  const set=new Set(); if(b.isbn) set.add(b.isbn);
+  const core=(b.title||'').split(/[\s　！!？?：:・（(\[【「『、,。～]/)[0].trim();
+  if(core.length<2) return [...set];
+  const aNorm=s=>(s||'').replace(/[\s　・,、\/／]/g,'');
+  const key=aNorm(b.author).slice(0,2); // 著者名で同名異本(三体詩 等)を除き件数をしぼる
+  try{
+    const r=await fetch('https://ndlsearch.ndl.go.jp/api/opensearch?cnt=500&title='+encodeURIComponent(core));
+    const xml=new DOMParser().parseFromString(await r.text(),'application/xml');
+    for(const it of xml.querySelectorAll('item')){
+      const t=it.querySelector('title')?.textContent||'';
+      if(!t.includes(core)) continue;
+      if(key.length>=2){ const cr=aNorm([...it.getElementsByTagName('dc:creator')].map(n=>n.textContent).join('')); if(!cr.includes(key)) continue; }
+      for(const n of it.getElementsByTagName('dc:identifier')){
+        if(/ISBN/i.test(n.getAttribute('xsi:type')||'')){
+          const v=(n.textContent||'').replace(/[^0-9Xx]/g,'');
+          if(v.length===10||v.length===13) set.add(v);
+        }
+      }
+      if(set.size>=15) break;
+    }
+  }catch(e){}
+  return [...set].slice(0,15);
+}
 function stCls(s){ if(/可|あり/.test(s)) return 'green'; if(/中|予約/.test(s)) return 'orange'; return 'gray'; }
-function renderLib(box, isbn, r){
+function renderLib(box, isbns, r){
   if(!r || !r.books){ box.innerHTML='<div class="shint">うまくしらべられなかったよ。もういちど試してね。</div>'; return; }
-  const data=r.books[isbn]||{}; const libs=calilLibs();
+  const libs=calilLibs();
   box.innerHTML='<label>としょかんの けっか</label>'+libs.map(L=>{
-    const d=data[L.systemid]||{}; const lk=d.libkey||{}; const branches=Object.keys(lk);
-    let inner = branches.length
-      ? branches.map(bn=>`<span class="lib-st ${stCls(lk[bn])}">${esc(bn)}：${esc(lk[bn])}</span>`).join('')
+    // 同じ図書館について、全ISBN(版)の所蔵をまとめる
+    const merged={}; let reserve='';
+    isbns.forEach(isbn=>{ const d=(r.books[isbn]||{})[L.systemid]; if(!d||!d.libkey) return;
+      const ks=Object.keys(d.libkey);
+      ks.forEach(bn=>{ if(!merged[bn]) merged[bn]=d.libkey[bn]; });
+      if(ks.length && d.reserveurl && !reserve) reserve=d.reserveurl;
+    });
+    const branches=Object.keys(merged);
+    const inner = branches.length
+      ? branches.map(bn=>`<span class="lib-st ${stCls(merged[bn])}">${esc(bn)}：${esc(merged[bn])}</span>`).join('')
       : '<span class="lib-st gray">このとしょかんには なし</span>';
-    const rv = (branches.length && d.reserveurl) ? ` <a href="${esc(d.reserveurl)}" target="_blank" rel="noopener">予約ページ→</a>` : '';
+    const rv = (branches.length && reserve) ? ` <a href="${esc(reserve)}" target="_blank" rel="noopener">予約ページ→</a>` : '';
     return `<div class="lib-row"><div><div class="lib-name">${esc(L.systemname)}</div><div>${inner}${rv}</div></div></div>`;
   }).join('');
 }
