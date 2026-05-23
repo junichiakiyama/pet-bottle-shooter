@@ -1,4 +1,4 @@
-const CACHE = 'yomitomo-v11';
+const CACHE = 'yomitomo-v12';
 const FILES = ['./index.html', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {

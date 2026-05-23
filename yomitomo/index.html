@@ -25,12 +25,21 @@
   #profileScreen .sub{color:#a98; margin-bottom:30px;}
   .avatar-grid{display:flex; flex-wrap:wrap; gap:16px; justify-content:center;}
   .pcard{background:var(--card); border-radius:24px; padding:18px 14px; width:130px;
-    box-shadow:0 6px 0 #f2d8e6; transition:transform .1s;}
+    box-shadow:0 6px 0 #f2d8e6; transition:transform .1s; position:relative;}
   .pcard:active{transform:scale(.96);}
   .pcard .face{font-size:48px;}
   .pcard .pname{font-weight:bold; margin-top:6px; font-size:17px;}
   .pcard.add{border:3px dashed var(--pink-soft); box-shadow:none; background:#fff;}
   .pcard.add .face{color:var(--pink);}
+  .pdel{display:none; position:absolute; top:-8px; right:-8px; width:30px; height:30px;
+    border-radius:50%; background:#ff5b7f; color:#fff; font-size:18px; line-height:1;
+    box-shadow:0 2px 6px #0003; align-items:center; justify-content:center; z-index:2;}
+  .editing .pdel{display:flex;}
+  .editing .pcard.add{display:none;}
+  #profileTools{margin-top:30px;}
+  .ptool{background:#fff; border:2px solid var(--pink-soft); color:#b09; border-radius:16px;
+    padding:10px 18px; font-weight:bold;}
+  .ptool.on{background:var(--pink); color:#fff; border-color:var(--pink);}
 
   /* ---------- header ---------- */
   header{background:linear-gradient(135deg,var(--pink-soft),var(--blue-soft));
@@ -170,6 +179,15 @@
   <h1>よみとも</h1>
   <div class="sub">よむのが、もっとすきになる</div>
   <div class="avatar-grid" id="avatarGrid"></div>
+  <div id="profileTools">
+    <button class="ptool" id="editToggle">✏️ メンバーをへんしゅう</button>
+    <div style="margin-top:18px; font-size:12px; color:#a98;">データのバックアップ（だいじな きろくを まもろう）</div>
+    <div class="btn-row" style="max-width:320px; margin:8px auto 0;">
+      <button class="btn-sub" id="btnExport" style="flex:1;">⬇️ ほぞん</button>
+      <button class="btn-sub" id="btnImport" style="flex:1; background:var(--good); box-shadow:0 4px 0 #3fa877;">⬆️ ふくげん</button>
+    </div>
+    <input type="file" id="importFile" accept="application/json,.json" style="display:none;">
+  </div>
 </div>
 
 <!-- ===== App ===== -->
@@ -290,18 +308,49 @@ function stats(p){
 }
 
 /* ---------- profile screen ---------- */
+let editMode=false;
 function renderProfiles(){
   const g=document.getElementById('avatarGrid'); g.innerHTML='';
+  g.classList.toggle('editing', editMode);
   DB.profiles.forEach(p=>{
     const d=document.createElement('div'); d.className='pcard';
     const lv=levelFromXp(stats(p).xp).level; const dc=levelDeco(lv);
-    d.innerHTML=`<div class="face-wrap ${dc.glow?'glow':''}" style="background:${dc.ring||'transparent'}"><div class="face">${p.avatar}</div>${dc.badge?`<span class="pbadge">${dc.badge}</span>`:''}</div><div class="pname">${esc(p.name)}</div><div style="font-size:11px;color:#b09;font-weight:bold">Lv.${lv}</div>`;
-    d.onclick=()=>{ DB.current=p.id; save(); openApp(); };
+    d.innerHTML=`<button class="pdel" aria-label="けす">×</button><div class="face-wrap ${dc.glow?'glow':''}" style="background:${dc.ring||'transparent'}"><div class="face">${p.avatar}</div>${dc.badge?`<span class="pbadge">${dc.badge}</span>`:''}</div><div class="pname">${esc(p.name)}</div><div style="font-size:11px;color:#b09;font-weight:bold">Lv.${lv}</div>`;
+    d.querySelector('.pdel').onclick=e=>{ e.stopPropagation(); confirmDelete(p); };
+    d.onclick=()=>{ if(editMode) return; DB.current=p.id; save(); openApp(); };
     g.appendChild(d);
   });
   const add=document.createElement('div'); add.className='pcard add';
   add.innerHTML=`<div class="face">＋</div><div class="pname">あたらしく</div>`;
   add.onclick=newProfile; g.appendChild(add);
+}
+function confirmDelete(p){
+  const n=p.name, books=p.books.length, days=new Set(p.logs.map(l=>l.date)).size;
+  if(!confirm(`「${n}」さんをけしますか？\n\n本 ${books}さつ・きろく ${days}日ぶん が、ぜんぶ きえます。\nこのそうさは もとにもどせません。`)) return;
+  if(!confirm(`ほんとうに「${n}」さんをけしていいですか？\n（さいごのかくにん）`)) return;
+  DB.profiles=DB.profiles.filter(x=>x.id!==p.id);
+  if(DB.current===p.id) DB.current=null;
+  save(); renderProfiles();
+}
+function exportData(){
+  const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='yomitomo-backup-'+today()+'.json'; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000);
+}
+function importData(file){
+  const fr=new FileReader();
+  fr.onload=()=>{ try{
+    const data=JSON.parse(fr.result); if(!data||!Array.isArray(data.profiles)) throw 0;
+    const byId={}; DB.profiles.forEach(p=>byId[p.id]=p);
+    data.profiles.forEach(p=>{ if(p&&p.id&&p.name){ p.books=p.books||[]; p.logs=p.logs||[]; byId[p.id]=p; } });
+    DB.profiles=Object.values(byId);
+    const libs=DB.calilLibs||[]; const sset=new Set(libs.map(l=>l.systemid));
+    (data.calilLibs||[]).forEach(l=>{ if(l&&!sset.has(l.systemid)){ libs.push(l); sset.add(l.systemid); } });
+    DB.calilLibs=libs; save();
+    alert('ふくげんしました！ '+DB.profiles.length+'人のデータがあります。'); renderProfiles();
+  }catch(e){ alert('このファイルは よみこめませんでした。よみともの バックアップファイルをえらんでね。'); } };
+  fr.readAsText(file);
 }
 function newProfile(){
   modal(`<h2>あなたはだれ？</h2>
@@ -746,6 +795,16 @@ function settingsSheet(){
   render();
 }
 document.getElementById('settingsBtn').onclick=settingsSheet;
+
+/* ---------- profile tools (へんしゅう・バックアップ) ---------- */
+document.getElementById('editToggle').onclick=function(){
+  editMode=!editMode; this.classList.toggle('on',editMode);
+  this.textContent= editMode ? '✅ へんしゅうをおわる' : '✏️ メンバーをへんしゅう';
+  renderProfiles();
+};
+document.getElementById('btnExport').onclick=exportData;
+document.getElementById('btnImport').onclick=()=>document.getElementById('importFile').click();
+document.getElementById('importFile').onchange=function(){ if(this.files[0]) importData(this.files[0]); this.value=''; };
 
 /* ---------- boot ---------- */
 renderProfiles();
