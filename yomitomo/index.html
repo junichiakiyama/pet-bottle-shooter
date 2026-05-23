@@ -181,6 +181,7 @@
   <div class="avatar-grid" id="avatarGrid"></div>
   <div id="profileTools">
     <button class="ptool" id="editToggle">✏️ メンバーをへんしゅう</button>
+    <div style="margin-top:16px;"><button class="btn-sub" id="btnCloud" style="background:#9fd3ff; box-shadow:0 4px 0 #6fb0e0; padding:11px 22px;">☁️ クラウドからよみこむ</button></div>
     <div style="margin-top:18px; font-size:12px; color:#a98;">データのバックアップ（だいじな きろくを まもろう）</div>
     <div class="btn-row" style="max-width:320px; margin:8px auto 0;">
       <button class="btn-sub" id="btnExport" style="flex:1;">⬇️ ほぞん</button>
@@ -363,7 +364,7 @@ function newProfile(){
     document.querySelectorAll('#avPick .gchip').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); av=b.dataset.av;};
   document.getElementById('npSave').onclick=()=>{
     const name=document.getElementById('npName').value.trim(); if(!name){alert('なまえをいれてね');return;}
-    const p={id:uid(),name,avatar:av,books:[],logs:[]}; DB.profiles.push(p); DB.current=p.id; save(); closeModal(); openApp();
+    const p={id:uid(),name,avatar:av,books:[],logs:[]}; DB.profiles.push(p); DB.current=p.id; save(); cloudPush(p); closeModal(); openApp();
   };
 }
 
@@ -512,7 +513,7 @@ function addBook(){
     const pages=parseInt(document.getElementById('abPages').value)||0;
     const p=P(); p.books.push({id:uid(),title,author:document.getElementById('abAuthor').value.trim(),
       totalPages:pages,genre,coverUrl,isbn,status:'reading',pagesRead:0,createdAt:Date.now(),finishedAt:null});
-    save(); closeModal(); renderApp();
+    save(); cloudPush(p); closeModal(); renderApp();
   };
 }
 
@@ -596,7 +597,7 @@ function logReading(b,pages,finish,absPage){
   if(b.totalPages && b.pagesRead>=b.totalPages){ b.pagesRead=b.totalPages; finish=true; }
   let justFinished=false;
   if(finish && b.status!=='done'){ b.status='done'; b.finishedAt=Date.now(); justFinished=true; }
-  save();
+  save(); cloudPush(p);
   const after=stats(p); const afterLv=levelFromXp(after.xp).level;
   const newBadges=BADGES.filter(bd=>bd.ck(after)&&!bd.ck(before));
   closeModal(); renderApp();
@@ -796,6 +797,37 @@ function settingsSheet(){
 }
 document.getElementById('settingsBtn').onclick=settingsSheet;
 
+/* ---------- cloud sync (Google スプレッドシート) ---------- */
+// 変更を自動でクラウド(自分のスプレッドシート)に保存し、別端末では同じ名前で続けられる。
+// applicationId等と同じくキーはクライアントに入るが、合言葉(secret)で最低限ガード。
+const SHEETS_URL='https://script.google.com/macros/s/AKfycbwGQMchvIiYzLBydzoccPwbSwG-K_G62gV-c88hcRa_tHwl7pt4N9tkiBNMctlBgw5Z/exec';
+const SHEETS_SECRET='yomitomo777';
+const _pushTimers={};
+function cloudEnabled(){ return !!SHEETS_URL; }
+function cloudPush(p){
+  if(!cloudEnabled()||!p||!p.name) return;
+  p.updated=Date.now(); save();
+  clearTimeout(_pushTimers[p.name]);
+  _pushTimers[p.name]=setTimeout(()=>{
+    fetch(SHEETS_URL,{method:'POST',body:JSON.stringify({secret:SHEETS_SECRET,name:p.name,data:JSON.stringify(p),updated:p.updated})}).catch(()=>{});
+  },800);
+}
+async function cloudPull(){
+  if(!cloudEnabled()) return {error:'nourl'};
+  try{
+    const r=await fetch(SHEETS_URL+'?secret='+encodeURIComponent(SHEETS_SECRET));
+    const j=await r.json(); if(!j||!j.ok) return {error:(j&&j.error)||'err'};
+    let added=0, updated=0;
+    (j.profiles||[]).forEach(row=>{ let cp; try{cp=JSON.parse(row.data);}catch(e){return;} if(!cp||!cp.name) return;
+      cp.updated=row.updated||cp.updated||0;
+      const local=DB.profiles.find(p=>p.name===cp.name);
+      if(!local){ DB.profiles.push(cp); added++; }
+      else if((cp.updated||0)>(local.updated||0)){ const id=local.id; Object.assign(local,cp); local.id=id; updated++; }
+    });
+    save(); return {added,updated,total:(j.profiles||[]).length};
+  }catch(e){ return {error:'net'}; }
+}
+
 /* ---------- profile tools (へんしゅう・バックアップ) ---------- */
 document.getElementById('editToggle').onclick=function(){
   editMode=!editMode; this.classList.toggle('on',editMode);
@@ -805,9 +837,25 @@ document.getElementById('editToggle').onclick=function(){
 document.getElementById('btnExport').onclick=exportData;
 document.getElementById('btnImport').onclick=()=>document.getElementById('importFile').click();
 document.getElementById('importFile').onchange=function(){ if(this.files[0]) importData(this.files[0]); this.value=''; };
+const _btnCloud=document.getElementById('btnCloud');
+if(_btnCloud){
+  if(!cloudEnabled()) _btnCloud.style.display='none';
+  else _btnCloud.onclick=async()=>{
+    _btnCloud.textContent='よみこみちゅう…⏳';
+    const r=await cloudPull();
+    _btnCloud.textContent='☁️ クラウドからよみこむ';
+    if(r.error){ alert('クラウドからよみこめませんでした。つうしんを かくにんしてね。'); }
+    else { alert('クラウドから '+(r.added+r.updated)+'人ぶんを よみこみました。'); renderProfiles(); }
+  };
+}
 
 /* ---------- boot ---------- */
 renderProfiles();
+// 新しい端末(まだ誰もいない & 初回)なら、クラウドから自動で復元する
+if(cloudEnabled() && DB.profiles.length===0 && !localStorage.getItem('yt_pulled')){
+  localStorage.setItem('yt_pulled','1');
+  cloudPull().then(r=>{ if(r && !r.error && (r.added||r.updated)) renderProfiles(); });
+}
 if(DB.current && P()) openApp();
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
