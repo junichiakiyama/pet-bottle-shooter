@@ -15,17 +15,18 @@
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent; font-family:"Hiragino Maru Gothic ProN","Rounded Mplus 1c","Segoe UI",system-ui,sans-serif;}
   html,body{margin:0; padding:0; background:var(--bg); color:var(--ink);}
-  body{max-width:520px; margin:0 auto; padding-bottom:90px; min-height:100vh;}
+  body{max-width:520px; margin:0 auto; padding-bottom:90px; min-height:100vh;
+    background:linear-gradient(rgba(255,247,251,0.9),rgba(255,247,251,0.9)), url('bg.svg') center top/cover fixed, var(--bg);}
   button{cursor:pointer; border:none; font-size:16px;}
   .hidden{display:none !important;}
 
   /* ---------- profile select ---------- */
   #profileScreen{padding:38px 20px; text-align:center;}
   #hero{width:170px; height:170px; margin:0 auto 6px; border-radius:32px;
-    background:linear-gradient(135deg,#ffeef6 0%,#fbf0ff 52%,#e9f2ff 100%);
+    background:#fff;
     box-shadow:0 14px 30px #d9a8c340, inset 0 0 0 1px #ffffffcc;
     display:flex; align-items:center; justify-content:center; font-size:84px; overflow:hidden; position:relative;}
-  #hero img{width:100%; height:100%; object-fit:contain; mix-blend-mode:multiply;}
+  #hero img{width:100%; height:100%; object-fit:contain; transform:scale(1.22);}
   #hero::after{content:""; position:absolute; inset:0; border-radius:32px;
     box-shadow:inset 0 -18px 26px #ffffff66; pointer-events:none;}
   .logo-wrap{position:relative; display:inline-block; margin:8px 0 2px;}

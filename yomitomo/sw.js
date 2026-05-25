@@ -1,5 +1,5 @@
-const CACHE = 'yomitomo-v16';
-const FILES = ['./index.html', './manifest.json', './icon.svg', './hero.png'];
+const CACHE = 'yomitomo-v17';
+const FILES = ['./index.html', './manifest.json', './icon.svg', './hero.png', './bg.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
