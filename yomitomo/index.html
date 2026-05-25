@@ -253,6 +253,7 @@
 <div id="modalRoot"></div>
 <div id="celebrate" class="hidden"></div>
 
+<script src="html5-qrcode.min.js"></script>
 <script>
 const GENRES = [
   {k:'monogatari',e:'🧚',n:'ものがたり'},{k:'bouken',e:'🗺️',n:'ぼうけん'},
@@ -446,44 +447,58 @@ function renderBadges(s){
   }).join('');
 }
 
+/* ---------- カメラでISBNバーコードをよむ ---------- */
+function openScanner(onIsbn){
+  if(typeof Html5Qrcode==='undefined'){ alert('カメラ機能をよみこめませんでした。電波のよいところで もういちど ひらいてね。'); return; }
+  const ov=document.createElement('div'); ov.className='overlay'; ov.style.zIndex='70'; ov.style.alignItems='center';
+  ov.innerHTML=`<div class="sheet" style="max-width:460px;border-radius:24px;margin:16px;max-height:88vh;overflow:auto">
+    <div class="sheet-content" style="padding:18px 20px">
+    <h2 style="margin-bottom:6px">📷 バーコードをよむ</h2>
+    <div class="shint" style="margin-bottom:10px">本のうらにある バーコードを わくに合わせてね。</div>
+    <div id="reader" style="width:100%;border-radius:14px;overflow:hidden;background:#000"></div>
+    <div id="scanMsg" class="shint" style="text-align:center;min-height:18px"></div>
+    <button class="btn-ghost" id="scanClose">とじる</button></div></div>`;
+  document.body.appendChild(ov);
+  const h=new Html5Qrcode('reader');
+  let done=false;
+  const stop=()=>{ try{ h.stop().then(()=>{try{h.clear();}catch(e){}}).catch(()=>{}); }catch(e){} if(ov.parentNode) ov.remove(); };
+  document.getElementById('scanClose').onclick=stop;
+  h.start({facingMode:'environment'}, {fps:10, qrbox:{width:260,height:150}},
+    (text)=>{ if(done) return; const code=(text||'').replace(/[^0-9Xx]/g,'');
+      if(/^97[89]\d{10}$/.test(code)){ done=true; const msg=document.getElementById('scanMsg'); if(msg) msg.textContent='よみとれた！🎉'; stop(); onIsbn(code); }
+      else { const msg=document.getElementById('scanMsg'); if(msg) msg.textContent='本のバーコード（978…）をさがしてね'; } },
+    ()=>{}
+  ).catch(()=>{ const msg=document.getElementById('scanMsg'); if(msg) msg.textContent='カメラをひらけませんでした。きょかを かくにんしてね。'; });
+}
+
 /* ---------- add book ---------- */
 function addBook(){
-  let genre='monogatari', coverUrl='', isbn='', scope='all';
+  let genre='monogatari', coverUrl='', isbn='', scope='all', mode='title', pickedPages=0;
+  const GS=[{id:'001003003',e:'🎨',n:'えほん'},{id:'001003002',e:'📕',n:'じどう文庫'},{id:'001003001',e:'📖',n:'よみもの'},{id:'001003006',e:'🔍',n:'ずかん'},{id:'001003004',e:'🏯',n:'むかし話'},{id:'001003005',e:'✨',n:'しかけえほん'}];
   modal(`<h2>本をついか 📖</h2>
-    <label>本をさがす 🔎</label>
-    <div class="genre-pick" id="abScope">
+    <button class="btn-sub" id="abScan" style="width:100%;background:var(--purple);box-shadow:0 4px 0 #6a45c8;margin-bottom:14px">📷 カメラでバーコードをよむ</button>
+    <label>さがしかた</label>
+    <div class="genre-pick" id="abMode">
+      <button class="gchip sel" data-mode="title">📖 タイトル</button>
+      <button class="gchip" data-mode="author">✍️ さくしゃ</button>
+      <button class="gchip" data-mode="genre">🏷️ ジャンル</button>
+    </div>
+    <div class="btn-row" id="abQueryRow" style="margin-top:8px"><input id="abSearch" placeholder="タイトルでけんさく" style="flex:1">
+      <button class="btn-sub" id="abSearchBtn" style="flex:0 0 70px">さがす</button></div>
+    <div class="genre-pick hidden" id="abGenreSearch">${GS.map(g=>`<button class="gchip" data-gs="${g.id}">${g.e} ${g.n}</button>`).join('')}</div>
+    <div id="abScopeWrap"><div class="genre-pick" id="abScope" style="margin-top:8px">
       <button class="gchip sel" data-scope="all">📚 ぜんぶ</button>
       <button class="gchip" data-scope="kids">🧒 児童書だけ</button>
-    </div>
-    <div class="btn-row" style="margin-top:8px"><input id="abSearch" placeholder="タイトルでけんさく" style="flex:1">
-      <button class="btn-sub" id="abSearchBtn" style="flex:0 0 70px">さがす</button></div>
+    </div></div>
     <div id="abResults"></div>
-    <label>本のなまえ</label><input id="abTitle" placeholder="例：ぐりとぐら">
+    <label>なまえ（見つからないときは 手でいれてね）</label><input id="abTitle" placeholder="例：ぐりとぐら">
     <label>さくしゃ（なくてもOK）</label><input id="abAuthor" placeholder="例：なかがわりえこ">
-    <label>ページすう（なくてもOK）</label><input id="abPages" type="number" inputmode="numeric" placeholder="例：32">
-    <label>ジャンル</label>
+    <label>ジャンル（本だなの いろわけ用）</label>
     <div class="genre-pick" id="abGenre">${GENRES.map(g=>`<button class="gchip ${g.k==='monogatari'?'sel':''}" data-g="${g.k}">${g.e} ${g.n}</button>`).join('')}</div>
     <button class="btn-primary" id="abSave">本だなにいれる</button>`);
-  document.getElementById('abGenre').onclick=e=>{const b=e.target.closest('[data-g]'); if(!b)return;
-    document.querySelectorAll('#abGenre .gchip').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); genre=b.dataset.g;};
-  document.getElementById('abScope').onclick=e=>{const b=e.target.closest('[data-scope]'); if(!b)return;
-    document.querySelectorAll('#abScope .gchip').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); scope=b.dataset.scope;
-    if(document.getElementById('abSearch').value.trim()) doSearch();};
 
-  function normIsbn(s){ s=(s||'').replace(/[^0-9Xx]/g,'');
-    if(s.length===10){ const core='978'+s.slice(0,9); let sum=0;
-      for(let i=0;i<12;i++) sum+=(+core[i])*(i%2?3:1);
-      return core+((10-(sum%10))%10); }
-    return s.length===13?s:''; }
-  function pickIsbn(item){
-    const ids=[...item.getElementsByTagName('dc:identifier')]; let raw='';
-    for(const n of ids){ const ty=n.getAttribute('xsi:type')||''; if(/ISBN/i.test(ty)){ raw=n.textContent; if(/13/.test(ty)) break; } }
-    return normIsbn(raw); }
-  function parsePages(item){ const ex=item.getElementsByTagName('dc:extent')[0]||item.getElementsByTagName('dcndl:extent')[0];
-    if(!ex) return 0; const m=ex.textContent.match(/(\d+)\s*p/); return m?+m[1]:0; }
   function renderResults(items){
     const box=document.getElementById('abResults');
-    if(!items.length){ box.innerHTML='<div class="shint">みつからなかったよ。手でいれてもOK！</div>'; return; }
     box.innerHTML=items.map((x,i)=>`<div class="sresult" data-i="${i}">
       ${x.cover?`<img src="${esc(x.cover)}" alt="">`:'<div style="width:36px;height:50px;background:var(--pink-soft);border-radius:5px;flex:0 0 36px"></div>'}
       <div style="flex:1;min-width:0"><div class="st">${esc(x.title)}</div>
@@ -492,40 +507,37 @@ function addBook(){
       const x=items[el.dataset.i];
       document.getElementById('abTitle').value=x.title;
       document.getElementById('abAuthor').value=x.author;
-      coverUrl=x.cover||''; isbn=x.isbn||'';
+      coverUrl=x.cover||''; isbn=x.isbn||''; pickedPages=0;
       box.querySelectorAll('.sresult').forEach(z=>z.classList.remove('sel')); el.classList.add('sel');
-      // ページ数をISBNからしらべて自動入力
-      const pi=document.getElementById('abPages');
-      if(x.isbn){ pi.placeholder='ページすうをしらべています…'; const want=x.isbn;
-        fetchPages(x.isbn).then(n=>{ if(isbn===want){ if(n>0) pi.value=n; pi.placeholder='例：32'; } }); }
+      if(x.isbn){ const want=x.isbn; fetchPages(x.isbn).then(n=>{ if(isbn===want && n>0) pickedPages=n; }); }
     });
   }
-  async function doSearch(){
-    const q=document.getElementById('abSearch').value.trim(); if(!q)return;
+  async function runSearch(opts){
     const box=document.getElementById('abResults'); box.innerHTML='<div class="shint">さがしてるよ…⏳</div>';
     try{
-      // 楽天ブックス・人気順(売れ筋)。scope='kids'は児童書ジャンル(001003)のみ=成人向けを構造的に除外。
-      // scope='all'は本全体(001)を対象にし、成人向けジャンル＋キーワードで除外する。
-      const genreId = scope==='kids' ? '001003' : '001';
-      const url='https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404'
-        +'?format=json&applicationId='+RAKUTEN_APP_ID+'&accessKey='+RAKUTEN_ACCESS_KEY
-        +'&booksGenreId='+genreId+'&sort=sales&hits=30&title='+encodeURIComponent(q);
+      let url='https://openapi.rakuten.co.jp/services/api/BooksBook/Search/20170404'
+        +'?format=json&applicationId='+RAKUTEN_APP_ID+'&accessKey='+RAKUTEN_ACCESS_KEY+'&sort=sales&hits=30';
+      if(opts.isbn){ url+='&isbn='+encodeURIComponent(opts.isbn); }
+      else {
+        const genreId = opts.genreId || (scope==='kids'?'001003':'001');
+        url+='&booksGenreId='+genreId;
+        if(opts.title) url+='&title='+encodeURIComponent(opts.title);
+        if(opts.author) url+='&author='+encodeURIComponent(opts.author);
+      }
       const r=await fetch(url); const j=await r.json();
       if(!j.Items || j.errors){ box.innerHTML='<div class="shint">うまくさがせなかったよ。ちがう言葉でためすか、下に手でいれてね。</div>'; return; }
-      // 成人向け除外: ジャンル(BL/TL/グラビア写真集/成年コミック誌)＋キーワード
+      const filterAdult = !opts.isbn && !opts.genreId && scope==='all';
       const DENYG=/(^|\/)(001021|001029|001013001|001001003014|001001003060|001001003007)/;
       const BAD=/官能|エロ|18禁|十八禁|成人向|アダルト|ポルノ|ヌード|猥褻|わいせつ|性描写|性的|童貞|セックス|淫|姦/i;
       const seen={};
       let items=j.Items.map(o=>o.Item).filter(it=>{
-        if(scope==='kids') return true;
+        if(!filterAdult) return true;
         if(DENYG.test(it.booksGenreId||'')) return false;
         if(BAD.test((it.title||'')+' '+(it.author||'')+' '+(it.seriesName||'')+' '+(it.itemCaption||''))) return false;
         return true;
       }).map(it=>({
-        title:(it.title||'').trim(),
-        author:(it.author||'').replace(/\s+/g,' ').trim(),
+        title:(it.title||'').trim(), author:(it.author||'').replace(/\s+/g,' ').trim(),
         publisher:(it.publisherName||'').trim(),
-        pages:0,
         isbn:(it.isbn||'').replace(/[^0-9Xx]/g,''),
         cover:(it.largeImageUrl||it.mediumImageUrl||'').replace('http://','https://')
       })).filter(x=>x.title && x.isbn).filter(x=>seen[x.isbn]?false:(seen[x.isbn]=true)).slice(0,20);
@@ -533,14 +545,32 @@ function addBook(){
       renderResults(items);
     }catch(e){ box.innerHTML='<div class="shint">ネットにつながらないみたい。手でいれてね。</div>'; }
   }
+  function doSearch(){ const q=document.getElementById('abSearch').value.trim(); if(!q) return; runSearch(mode==='author'?{author:q}:{title:q}); }
+  function setMode(m){ mode=m;
+    document.querySelectorAll('#abMode .gchip').forEach(x=>x.classList.toggle('sel', x.dataset.mode===m));
+    document.getElementById('abQueryRow').classList.toggle('hidden', m==='genre');
+    document.getElementById('abGenreSearch').classList.toggle('hidden', m!=='genre');
+    document.getElementById('abScopeWrap').classList.toggle('hidden', m==='genre');
+    document.getElementById('abSearch').placeholder = m==='author' ? 'さくしゃのなまえでけんさく' : 'タイトルでけんさく';
+    document.getElementById('abResults').innerHTML='';
+  }
+
+  document.getElementById('abGenre').onclick=e=>{const b=e.target.closest('[data-g]'); if(!b)return;
+    document.querySelectorAll('#abGenre .gchip').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); genre=b.dataset.g;};
+  document.getElementById('abMode').onclick=e=>{const b=e.target.closest('[data-mode]'); if(!b)return; setMode(b.dataset.mode);};
+  document.getElementById('abGenreSearch').onclick=e=>{const b=e.target.closest('[data-gs]'); if(!b)return;
+    document.querySelectorAll('#abGenreSearch .gchip').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); runSearch({genreId:b.dataset.gs});};
+  document.getElementById('abScope').onclick=e=>{const b=e.target.closest('[data-scope]'); if(!b)return;
+    document.querySelectorAll('#abScope .gchip').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); scope=b.dataset.scope;
+    const q=document.getElementById('abSearch').value.trim(); if(q && mode!=='genre') doSearch();};
   document.getElementById('abSearchBtn').onclick=doSearch;
   document.getElementById('abSearch').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();doSearch();} });
+  document.getElementById('abScan').onclick=()=>openScanner(iv=>runSearch({isbn:iv}));
 
   document.getElementById('abSave').onclick=()=>{
     const title=document.getElementById('abTitle').value.trim(); if(!title){alert('本のなまえをいれてね');return;}
-    const pages=parseInt(document.getElementById('abPages').value)||0;
     const p=P(); p.books.push({id:uid(),title,author:document.getElementById('abAuthor').value.trim(),
-      totalPages:pages,genre,coverUrl,isbn,status:'reading',pagesRead:0,createdAt:Date.now(),finishedAt:null});
+      totalPages:pickedPages||0,genre,coverUrl,isbn,status:'reading',pagesRead:0,createdAt:Date.now(),finishedAt:null});
     save(); cloudPush(p); closeModal(); renderApp();
   };
 }
