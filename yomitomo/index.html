@@ -459,14 +459,20 @@ function openScanner(onIsbn){
     <div id="scanMsg" class="shint" style="text-align:center;min-height:18px"></div>
     <button class="btn-ghost" id="scanClose">とじる</button></div></div>`;
   document.body.appendChild(ov);
-  const h=new Html5Qrcode('reader');
+  // 本のバーコードは1次元(EAN-13等)。対応フォーマットを明示しないとZXingが検出しにくい。
+  const F=(typeof Html5QrcodeSupportedFormats!=='undefined')?Html5QrcodeSupportedFormats:null;
+  const fmts=F?[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.ITF]:undefined;
+  const h=new Html5Qrcode('reader', { formatsToSupport:fmts, verbose:false });
   let done=false;
   const stop=()=>{ try{ h.stop().then(()=>{try{h.clear();}catch(e){}}).catch(()=>{}); }catch(e){} if(ov.parentNode) ov.remove(); };
   document.getElementById('scanClose').onclick=stop;
-  h.start({facingMode:'environment'}, {fps:10, qrbox:{width:260,height:150}},
-    (text)=>{ if(done) return; const code=(text||'').replace(/[^0-9Xx]/g,'');
-      if(/^97[89]\d{10}$/.test(code)){ done=true; const msg=document.getElementById('scanMsg'); if(msg) msg.textContent='よみとれた！🎉'; stop(); onIsbn(code); }
-      else { const msg=document.getElementById('scanMsg'); if(msg) msg.textContent='本のバーコード（978…）をさがしてね'; } },
+  // 横長のスキャン枠（バーコード向き）
+  const qrbox=(vw,vh)=>{ const w=Math.min(330,Math.max(160,Math.floor(vw*0.92)), vw); let hh=Math.max(110,Math.floor(w*0.55)); hh=Math.min(hh, Math.floor(vh*0.7), vh); return {width:w, height:hh}; };
+  h.start({facingMode:'environment'}, {fps:10, qrbox, aspectRatio:1.3333},
+    (text)=>{ if(done) return; const msg=document.getElementById('scanMsg');
+      const code=(text||'').replace(/[^0-9Xx]/g,'');
+      if(/^97[89]\d{10}$/.test(code)){ done=true; if(msg) msg.textContent='よみとれた！🎉 ('+code+')'; stop(); onIsbn(code); }
+      else { if(msg) msg.textContent='よみとり中… ('+(text||'')+')'; } },
     ()=>{}
   ).catch(()=>{ const msg=document.getElementById('scanMsg'); if(msg) msg.textContent='カメラをひらけませんでした。きょかを かくにんしてね。'; });
 }
