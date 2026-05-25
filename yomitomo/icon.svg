@@ -1,21 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffd6e8"/>
-      <stop offset="1" stop-color="#c5e8ff"/>
+    <linearGradient id="ga" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b6cff"/>
+      <stop offset=".55" stop-color="#9b5cff"/>
+      <stop offset="1" stop-color="#ff7eb6"/>
+    </linearGradient>
+    <linearGradient id="ga2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#eef1ff"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
-  <g transform="translate(256 268)">
-    <!-- open book -->
-    <path d="M-150 -30 q60 -40 150 -10 q90 -30 150 10 l0 150 q-60 -30 -150 0 q-90 -30 -150 0 z" fill="#fff" stroke="#8a5cff" stroke-width="14" stroke-linejoin="round"/>
-    <path d="M0 -40 L0 110" stroke="#8a5cff" stroke-width="14" stroke-linecap="round"/>
-    <path d="M-120 -10 q50 -22 110 0 M-120 25 q50 -22 110 0 M-120 60 q50 -22 110 0" stroke="#ffb3d1" stroke-width="9" fill="none" stroke-linecap="round"/>
-    <path d="M10 -10 q50 -22 110 0 M10 25 q50 -22 110 0 M10 60 q50 -22 110 0" stroke="#9fd3ff" stroke-width="9" fill="none" stroke-linecap="round"/>
+  <rect width="512" height="512" rx="116" fill="url(#ga)"/>
+  <g fill="#ffffff" opacity=".85">
+    <circle cx="110" cy="120" r="4"/><circle cx="408" cy="96" r="5"/>
+    <circle cx="150" cy="402" r="4"/><circle cx="372" cy="410" r="3.5"/>
+    <circle cx="430" cy="300" r="3.5"/><circle cx="86" cy="270" r="3"/>
   </g>
-  <!-- sparkle -->
-  <g fill="#ffcf3f">
-    <path d="M150 120 l10 26 26 10 -26 10 -10 26 -10 -26 -26 -10 26 -10 z"/>
-    <path d="M380 150 l7 18 18 7 -18 7 -7 18 -7 -18 -18 -7 18 -7 z"/>
+  <g transform="translate(256 268)">
+    <ellipse cx="0" cy="92" rx="150" ry="26" fill="#000" opacity=".12"/>
+    <path d="M-150 -36 q60 -34 150 -8 q90 -26 150 8 l0 150 q-60 -28 -150 0 q-90 -28 -150 0 z" fill="url(#ga2)" stroke="#d9defb" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M0 -44 L0 110" stroke="#c7ccf2" stroke-width="9" stroke-linecap="round"/>
+    <path d="M-122 -8 q52 -22 112 0 M-122 26 q52 -22 112 0 M-122 58 q52 -22 112 0" stroke="#b7a8ff" stroke-width="8" fill="none" stroke-linecap="round"/>
+    <path d="M10 -8 q52 -22 112 0 M10 26 q52 -22 112 0 M10 58 q52 -22 112 0" stroke="#ff9ec7" stroke-width="8" fill="none" stroke-linecap="round"/>
+  </g>
+  <g transform="translate(372 150)" fill="#ffd76a">
+    <path d="M0 -26 Q5 -5 26 0 Q5 5 0 26 Q-5 5 -26 0 Q-5 -5 0 -26Z"/>
   </g>
 </svg>
