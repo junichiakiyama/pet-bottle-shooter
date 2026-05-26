@@ -477,12 +477,33 @@ function openScanner(onIsbn){
   ).catch(()=>{ const msg=document.getElementById('scanMsg'); if(msg) msg.textContent='カメラをひらけませんでした。きょかを かくにんしてね。'; });
 }
 
+// しゃしん(静止画)からバーコードを読み取る。撮影した鮮明な1枚なので確実・速い。
+async function decodeImageFile(file, onIsbn, onFail){
+  if(typeof Html5Qrcode==='undefined'){ onFail('よみとり機能をよみこめませんでした。'); return; }
+  const F=(typeof Html5QrcodeSupportedFormats!=='undefined')?Html5QrcodeSupportedFormats:null;
+  const fmts=F?[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.ITF]:undefined;
+  const tmp=document.createElement('div'); tmp.id='ytScanTmp'; tmp.style.display='none'; document.body.appendChild(tmp);
+  const h=new Html5Qrcode('ytScanTmp', { formatsToSupport:fmts, verbose:false });
+  try{
+    const text=await h.scanFile(file, false);
+    const code=(text||'').replace(/[^0-9Xx]/g,'');
+    if(/^97[89]\d{10}$/.test(code)) onIsbn(code);
+    else onFail('本のISBN（978…）がみつかりませんでした。バーコードが大きく・はっきり写るように もういちど。');
+  }catch(e){ onFail('バーコードをよみとれませんでした。明るいところで、バーコードを大きく・ピントを合わせて とりなおしてね。'); }
+  finally{ try{ h.clear(); }catch(e){} tmp.remove(); }
+}
+
 /* ---------- add book ---------- */
 function addBook(){
   let genre='monogatari', coverUrl='', isbn='', scope='all', mode='title', pickedPages=0;
   const GS=[{id:'001003003',e:'🎨',n:'えほん'},{id:'001003002',e:'📕',n:'じどう文庫'},{id:'001003001',e:'📖',n:'よみもの'},{id:'001003006',e:'🔍',n:'ずかん'},{id:'001003004',e:'🏯',n:'むかし話'},{id:'001003005',e:'✨',n:'しかけえほん'}];
   modal(`<h2>本をついか 📖</h2>
-    <button class="btn-sub" id="abScan" style="width:100%;background:var(--purple);box-shadow:0 4px 0 #6a45c8;margin-bottom:14px">📷 カメラでバーコードをよむ</button>
+    <div class="btn-row" style="margin-bottom:14px">
+      <button class="btn-sub" id="abPhotoBtn" style="flex:1;background:var(--purple);box-shadow:0 4px 0 #6a45c8">📷 しゃしんでよむ</button>
+      <button class="btn-sub" id="abLiveBtn" style="flex:0 0 132px;background:#9fd3ff;box-shadow:0 4px 0 #6fb0e0">🎥 うごく画面</button>
+    </div>
+    <input type="file" accept="image/*" capture="environment" id="abPhoto" style="display:none">
+    <div class="shint" style="margin:-8px 0 12px;text-align:center">バーコードは「しゃしんでよむ」がかんたん・確実です📷</div>
     <label>さがしかた</label>
     <div class="genre-pick" id="abMode">
       <button class="gchip sel" data-mode="title">📖 タイトル</button>
@@ -571,7 +592,11 @@ function addBook(){
     const q=document.getElementById('abSearch').value.trim(); if(q && mode!=='genre') doSearch();};
   document.getElementById('abSearchBtn').onclick=doSearch;
   document.getElementById('abSearch').addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault();doSearch();} });
-  document.getElementById('abScan').onclick=()=>openScanner(iv=>runSearch({isbn:iv}));
+  document.getElementById('abLiveBtn').onclick=()=>openScanner(iv=>runSearch({isbn:iv}));
+  document.getElementById('abPhotoBtn').onclick=()=>document.getElementById('abPhoto').click();
+  document.getElementById('abPhoto').onchange=function(){ const f=this.files&&this.files[0]; this.value=''; if(!f) return;
+    const box=document.getElementById('abResults'); box.innerHTML='<div class="shint">しゃしんからよみとっています…⏳</div>';
+    decodeImageFile(f, iv=>runSearch({isbn:iv}), msg=>{ box.innerHTML='<div class="shint">'+msg+'</div>'; }); };
 
   document.getElementById('abSave').onclick=()=>{
     const title=document.getElementById('abTitle').value.trim(); if(!title){alert('本のなまえをいれてね');return;}
