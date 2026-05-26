@@ -488,26 +488,36 @@ async function decodeImageFile(file, onIsbn, onFail){
   let img; try{ img=await ytLoadImage(file); }catch(e){ onFail('しゃしんをよみこめませんでした。'); return; }
   const F=(typeof Html5QrcodeSupportedFormats!=='undefined')?Html5QrcodeSupportedFormats:null;
   const fmts=F?[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E]:undefined;
-  const maxDim=1500, scale=Math.min(1, maxDim/Math.max(img.width,img.height));
-  const W=Math.max(1,Math.round(img.width*scale)), H=Math.max(1,Math.round(img.height*scale));
-  const base=document.createElement('canvas'); base.width=W; base.height=H;
-  base.getContext('2d').drawImage(img,0,0,W,H);
+  const NW=img.naturalWidth||img.width, NH=img.naturalHeight||img.height;
   const tmp=document.createElement('div'); tmp.id='ytScanTmp'; tmp.style.display='none'; document.body.appendChild(tmp);
   const h=new Html5Qrcode('ytScanTmp', { formatsToSupport:fmts, verbose:false });
-  const regions=[ [0,0,W,H], [0,0,W,Math.round(H*0.58)], [0,Math.round(H*0.42),W,Math.round(H*0.58)], [0,Math.round(H*0.25),W,Math.round(H*0.5)] ];
-  async function tryRegion(rx,ry,rw,rh){
-    const c=document.createElement('canvas'); c.width=rw; c.height=rh;
-    c.getContext('2d').drawImage(base, rx,ry,rw,rh, 0,0,rw,rh);
+  // 切り出し窓を拡大してスキャン。バーコードが窓いっぱいに近いと読みやすい。
+  async function scanWin(sx,sy,sw,sh,outW){
+    const sc=outW/sw; const c=document.createElement('canvas'); c.width=Math.round(sw*sc); c.height=Math.round(sh*sc);
+    c.getContext('2d').drawImage(img, sx,sy,sw,sh, 0,0,c.width,c.height);
     const blob=await new Promise(r=>c.toBlob(r,'image/png'));
-    try{ const t=await h.scanFile(new File([blob],'r.png',{type:'image/png'}), false); return (t||'').replace(/[^0-9Xx]/g,''); }
+    try{ const t=await h.scanFile(new File([blob],'x.png',{type:'image/png'}), false); return (t||'').replace(/[^0-9Xx]/g,''); }
     catch(e){ return ''; }
   }
-  let found='';
-  for(const [rx,ry,rw,rh] of regions){ const code=await tryRegion(rx,ry,rw,rh);
-    if(/^97[89]\d{10}$/.test(code)){ found=code; break; } }
+  // ① まず全体（縮小）をさっと試す。中央に大きく写っていれば一発で当たる。
+  // ② だめなら、画像を上から下へ小窓で掃引。バーコードは横長なので横長窓を使う。
+  const wins=[];
+  const Hh=NH*0.17;
+  [0.6,0.8,0.45].forEach(wf=>{ const wpx=NW*wf;
+    const xs = wf>=0.8 ? [(NW-wpx)/2] : [0, (NW-wpx)/2, Math.max(0,NW-wpx)];
+    xs.forEach(sx=>{ for(let yf=0.03; yf<=0.62; yf+=0.075){ const sy=NH*yf; if(sy+Hh<=NH) wins.push([Math.max(0,sx),sy,wpx,Hh]); } });
+  });
+  let found=''; const t0=performance.now();
+  // 全体ざっと
+  { const c=await scanWin(0,0,NW,NH,1200); if(/^97[89]\d{10}$/.test(c)) found=c; }
+  if(!found){ for(const [sx,sy,sw,sh] of wins){
+    const c=await scanWin(sx,sy,sw,sh,900);
+    if(/^97[89]\d{10}$/.test(c)){ found=c; break; }
+    if(performance.now()-t0>9000) break; // 時間がかかりすぎたら打ち切り
+  } }
   try{ h.clear(); }catch(e){} tmp.remove();
   if(found) onIsbn(found);
-  else onFail('本のISBN（うえの 978… のバーコード）をよみとれませんでした。うえのバーコードが 大きく・はっきり写るように とりなおしてね。');
+  else onFail('本のISBN（うえの 978… のバーコード）をよみとれませんでした。バーコードが 大きく・まっすぐ・はっきり写るように とりなおすか、「🔢 ISBN番号」で数字を入力してね。');
 }
 
 /* ---------- add book ---------- */
