@@ -477,20 +477,37 @@ function openScanner(onIsbn){
   ).catch(()=>{ const msg=document.getElementById('scanMsg'); if(msg) msg.textContent='カメラをひらけませんでした。きょかを かくにんしてね。'; });
 }
 
-// しゃしん(静止画)からバーコードを読み取る。撮影した鮮明な1枚なので確実・速い。
+// しゃしん(静止画)からISBNバーコードを読み取る。
+// 日本の本は2段バーコード(上=ISBN 978…/下=価格 192…)。下を拾わないよう、
+// 画像を「全体→上半分→下半分→中央」に分けて試し、978/979で始まるISBNだけ採用する。
+// さらに大きすぎる写真は縮小して高速化する。
+function ytLoadImage(file){ return new Promise((res,rej)=>{ const u=URL.createObjectURL(file);
+  const im=new Image(); im.onload=()=>{ URL.revokeObjectURL(u); res(im); }; im.onerror=()=>{ URL.revokeObjectURL(u); rej(); }; im.src=u; }); }
 async function decodeImageFile(file, onIsbn, onFail){
   if(typeof Html5Qrcode==='undefined'){ onFail('よみとり機能をよみこめませんでした。'); return; }
+  let img; try{ img=await ytLoadImage(file); }catch(e){ onFail('しゃしんをよみこめませんでした。'); return; }
   const F=(typeof Html5QrcodeSupportedFormats!=='undefined')?Html5QrcodeSupportedFormats:null;
-  const fmts=F?[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.ITF]:undefined;
+  const fmts=F?[F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E]:undefined;
+  const maxDim=1500, scale=Math.min(1, maxDim/Math.max(img.width,img.height));
+  const W=Math.max(1,Math.round(img.width*scale)), H=Math.max(1,Math.round(img.height*scale));
+  const base=document.createElement('canvas'); base.width=W; base.height=H;
+  base.getContext('2d').drawImage(img,0,0,W,H);
   const tmp=document.createElement('div'); tmp.id='ytScanTmp'; tmp.style.display='none'; document.body.appendChild(tmp);
   const h=new Html5Qrcode('ytScanTmp', { formatsToSupport:fmts, verbose:false });
-  try{
-    const text=await h.scanFile(file, false);
-    const code=(text||'').replace(/[^0-9Xx]/g,'');
-    if(/^97[89]\d{10}$/.test(code)) onIsbn(code);
-    else onFail('本のISBN（978…）がみつかりませんでした。バーコードが大きく・はっきり写るように もういちど。');
-  }catch(e){ onFail('バーコードをよみとれませんでした。明るいところで、バーコードを大きく・ピントを合わせて とりなおしてね。'); }
-  finally{ try{ h.clear(); }catch(e){} tmp.remove(); }
+  const regions=[ [0,0,W,H], [0,0,W,Math.round(H*0.58)], [0,Math.round(H*0.42),W,Math.round(H*0.58)], [0,Math.round(H*0.25),W,Math.round(H*0.5)] ];
+  async function tryRegion(rx,ry,rw,rh){
+    const c=document.createElement('canvas'); c.width=rw; c.height=rh;
+    c.getContext('2d').drawImage(base, rx,ry,rw,rh, 0,0,rw,rh);
+    const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+    try{ const t=await h.scanFile(new File([blob],'r.png',{type:'image/png'}), false); return (t||'').replace(/[^0-9Xx]/g,''); }
+    catch(e){ return ''; }
+  }
+  let found='';
+  for(const [rx,ry,rw,rh] of regions){ const code=await tryRegion(rx,ry,rw,rh);
+    if(/^97[89]\d{10}$/.test(code)){ found=code; break; } }
+  try{ h.clear(); }catch(e){} tmp.remove();
+  if(found) onIsbn(found);
+  else onFail('本のISBN（うえの 978… のバーコード）をよみとれませんでした。うえのバーコードが 大きく・はっきり写るように とりなおしてね。');
 }
 
 /* ---------- add book ---------- */
