@@ -526,6 +526,7 @@ function addBook(){
       <button class="gchip sel" data-mode="title">📖 タイトル</button>
       <button class="gchip" data-mode="author">✍️ さくしゃ</button>
       <button class="gchip" data-mode="genre">🏷️ ジャンル</button>
+      <button class="gchip" data-mode="isbn">🔢 ISBN番号</button>
     </div>
     <div class="btn-row" id="abQueryRow" style="margin-top:8px"><input id="abSearch" placeholder="タイトルでけんさく" style="flex:1">
       <button class="btn-sub" id="abSearchBtn" style="flex:0 0 70px">さがす</button></div>
@@ -589,13 +590,19 @@ function addBook(){
       renderResults(items);
     }catch(e){ box.innerHTML='<div class="shint">ネットにつながらないみたい。手でいれてね。</div>'; }
   }
-  function doSearch(){ const q=document.getElementById('abSearch').value.trim(); if(!q) return; runSearch(mode==='author'?{author:q}:{title:q}); }
+  function doSearch(){ const q=document.getElementById('abSearch').value.trim(); if(!q) return;
+    if(mode==='isbn'){ const code=q.replace(/[^0-9Xx]/g,'');
+      if(code.length!==10 && code.length!==13){ document.getElementById('abResults').innerHTML='<div class="shint">ISBNの数字（10けた か 13けた）をいれてね</div>'; return; }
+      runSearch({isbn:code}); return; }
+    runSearch(mode==='author'?{author:q}:{title:q}); }
   function setMode(m){ mode=m;
     document.querySelectorAll('#abMode .gchip').forEach(x=>x.classList.toggle('sel', x.dataset.mode===m));
     document.getElementById('abQueryRow').classList.toggle('hidden', m==='genre');
     document.getElementById('abGenreSearch').classList.toggle('hidden', m!=='genre');
-    document.getElementById('abScopeWrap').classList.toggle('hidden', m==='genre');
-    document.getElementById('abSearch').placeholder = m==='author' ? 'さくしゃのなまえでけんさく' : 'タイトルでけんさく';
+    document.getElementById('abScopeWrap').classList.toggle('hidden', m==='genre'||m==='isbn');
+    const inp=document.getElementById('abSearch');
+    inp.placeholder = m==='author' ? 'さくしゃのなまえでけんさく' : (m==='isbn' ? 'うらの数字（978…）を入力' : 'タイトルでけんさく');
+    inp.setAttribute('inputmode', m==='isbn' ? 'numeric' : 'text');
     document.getElementById('abResults').innerHTML='';
   }
 
